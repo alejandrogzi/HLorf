@@ -1,2 +1,0 @@
-[console_scripts]
-translationai = translationai.__main__:main
