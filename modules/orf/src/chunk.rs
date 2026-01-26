@@ -1,4 +1,17 @@
-use genepred::{bed::BedFormat, Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer};
+//! Core module for detecting open reading frames in a query set of reads
+//! Alejandro Gonzales-Irribarren, 2025
+//!
+//! This module contains the main functions for finding open reading frames (ORFs)
+//! in a set of aligned reads.
+//!
+//! In short, every possible open reading frame (ORF) is detected for every
+//! read in the query set. For every potential ORF, learning models and databases
+//! are used to determine whether the ORF is a true ORF, a false positive.
+//! All the data from each reliable ORF is collected and subjected to another
+//! learning model trained with true ORFs and false positives. The process is
+//! heavily parallelized to offer fast performance on large datasets.
+
+use genepred::{Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer, bed::BedFormat};
 use memchr::memchr;
 use memmap2::Mmap;
 use rayon::prelude::*;
@@ -7,13 +20,13 @@ use twobit::TwoBitFile;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::{BufWriter, Write},
 };
 
 use crate::cli::ChunkArgs;
 
-fn run_chunk(args: ChunkArgs) {
+pub fn run_chunk(args: ChunkArgs) {
     let genome = get_sequences(args.sequence);
     let outdir = args.outdir.join("tmp");
     create_dir_all(&outdir).unwrap_or_else(|e| panic!("{}", e));
@@ -177,7 +190,7 @@ fn detect_region_format(path: &Path) -> Option<RegionFormat> {
     }
 }
 
-pub fn get_sequences<'a>(sequence: PathBuf) -> HashMap<Vec<u8>, Vec<u8>> {
+pub fn get_sequences(sequence: PathBuf) -> HashMap<Vec<u8>, Vec<u8>> {
     match sequence.extension() {
         Some(ext) => match ext.to_str() {
             Some("2bit") => from_2bit(sequence),

@@ -1,5 +1,18 @@
+//! Core module for detecting open reading frames in a query set of reads
+//! Alejandro Gonzales-Irribarren, 2025
+//!
+//! This module contains the main functions for finding open reading frames (ORFs)
+//! in a set of aligned reads.
+//!
+//! In short, every possible open reading frame (ORF) is detected for every
+//! read in the query set. For every potential ORF, learning models and databases
+//! are used to determine whether the ORF is a true ORF, a false positive.
+//! All the data from each reliable ORF is collected and subjected to another
+//! learning model trained with true ORFs and false positives. The process is
+//! heavily parallelized to offer fast performance on large datasets.
+
 use genepred::{Bed12, GenePred};
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::{HashMap, hash_map::Entry};
 use memchr::memchr;
 use memmap2::Mmap;
 
@@ -7,7 +20,7 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::str::{from_utf8, FromStr};
+use std::str::{FromStr, from_utf8};
 use std::sync::Arc;
 
 use crate::{cli::BlastArgs, consts::*, utils::*};
@@ -107,7 +120,14 @@ fn cut_fasta(
             .collect::<Vec<u8>>();
 
         if seq.len() < upstream_flank + downstream_flank {
-            panic!("ERROR: sequence is too short for upstream_flank + downstream_flank -> {} + {} = {} > {} for {}", upstream_flank, downstream_flank, upstream_flank + downstream_flank, seq.len(), header);
+            panic!(
+                "ERROR: sequence is too short for upstream_flank + downstream_flank -> {} + {} = {} > {} for {}",
+                upstream_flank,
+                downstream_flank,
+                upstream_flank + downstream_flank,
+                seq.len(),
+                header
+            );
         }
 
         let chopped = seq[upstream_flank..seq.len() - downstream_flank].to_vec();
@@ -358,7 +378,6 @@ impl BlastRecord {
 fn get_bed(bed: &PathBuf) -> HashMap<String, GenePred> {
     genepred::Reader::<Bed12>::from_mmap(bed)
         .unwrap_or_else(|e| panic!("ERROR: failed to read BED file -> {e}"))
-        .into_iter()
         .filter_map(|record| {
             record.ok().map(|record| {
                 (

@@ -1,3 +1,16 @@
+//! Core module for detecting open reading frames in a query set of reads
+//! Alejandro Gonzales-Irribarren, 2025
+//!
+//! This module contains the main functions for finding open reading frames (ORFs)
+//! in a set of aligned reads.
+//!
+//! In short, every possible open reading frame (ORF) is detected for every
+//! read in the query set. For every potential ORF, learning models and databases
+//! are used to determine whether the ORF is a true ORF, a false positive.
+//! All the data from each reliable ORF is collected and subjected to another
+//! learning model trained with true ORFs and false positives. The process is
+//! heavily parallelized to offer fast performance on large datasets.
+
 use dashmap::DashSet;
 use genepred::{Bed12, GenePred, Strand};
 use hashbrown::HashMap;
@@ -50,14 +63,13 @@ use crate::{cli::TaiArgs, consts::*, utils::*};
 ///     run_tai(args);
 /// }
 /// ```
-fn run_tai(args: TaiArgs) {
+pub fn run_tai(args: TaiArgs) {
     let dir = args.outdir.join("tai");
     std::fs::create_dir_all(&dir)
         .unwrap_or_else(|e| panic!("ERROR: could not create directory -> {e}!"));
 
     let records = genepred::Reader::<Bed12>::from_mmap(args.bed)
         .unwrap_or_else(|e| panic!("ERROR: failed to read BED file -> {e}"))
-        .into_iter()
         .filter_map(|record| {
             record.ok().map(|record| {
                 (
@@ -193,23 +205,30 @@ fn tai(
             });
 
             if stop - downstream_flank as u64 > record.exonic_length() {
-                println!("WARN: predicted ORF is out-of-bounds -> {orf:?} for {record:?} with exonic_length -> {:?}", record.exonic_length());
+                println!(
+                    "WARN: predicted ORF is out-of-bounds -> {orf:?} for {record:?} with exonic_length -> {:?}",
+                    record.exonic_length()
+                );
                 continue;
             };
 
-            let strand = record.strand.clone();
+            let strand = record.strand;
 
             let (mut orf_start, mut orf_end) = map_absolute_cds(
-                &record,
+                record,
                 start - upstream_flank as u64,
                 stop - downstream_flank as u64,
             );
 
-            println!("WARN: orf_start -> {orf_start:?}, orf_end -> {orf_end:?} for start -> {start:?}, stop -> {stop:?}");
+            println!(
+                "WARN: orf_start -> {orf_start:?}, orf_end -> {orf_end:?} for start -> {start:?}, stop -> {stop:?}"
+            );
 
             // WARN: skipping unreliable ORFs for the current alignment
             if (orf_start == 0 && orf_end == 0) || orf_start > orf_end || orf_end - orf_start < 3 {
-                println!("WARN: skipping unreliable ORF -> {orf:?} with mapped start -> {orf_start:?}, end -> {orf_end:?}");
+                println!(
+                    "WARN: skipping unreliable ORF -> {orf:?} with mapped start -> {orf_start:?}, end -> {orf_end:?}"
+                );
                 continue;
             }
 
@@ -261,9 +280,7 @@ fn tai(
                             // WARN: if stop_codon is not cannonical this is probably a case where the tool is wrong
                             println!(
                                 "WARN: stop codon is not TAA, TAG, or TGA -> {:?} from {:?} using {:?}",
-                                stop_codon,
-                                &id,
-                                stop
+                                stop_codon, &id, stop
                             );
 
                             // INFO: taking stop as last base and going back 2 nt to capture last codon
@@ -307,9 +324,7 @@ fn tai(
                             // WARN: if stop_codon is not cannonical this is probably a case where the tool is wrong
                             println!(
                                 "WARN: stop codon is not TAA, TAG, or TGA -> {:?} from {:?} using {:?}",
-                                stop_codon,
-                                &id,
-                                stop
+                                stop_codon, &id, stop
                             );
 
                             // INFO: taking stop as last base and going back 2 nt to capture last codon

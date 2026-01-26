@@ -11,12 +11,7 @@
 //! learning model trained with true ORFs and false positives. The process is
 //! heavily parallelized to offer fast performance on large datasets.
 
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-};
-
-use crate::{cli::SambaArgs, utils::*};
+use crate::cli::SambaArgs;
 
 const WEIGHTS: &str =
     "https://github.com/apcamargo/RNAsamba/raw/refs/heads/master/data/full_length_weights.hdf5";
@@ -68,60 +63,5 @@ pub fn run_samba(args: SambaArgs) {
 
     if !status.success() {
         panic!("ERROR: command failed -> {cmd}");
-    }
-
-    let chr = get_chr_from_path(&args.index);
-    let index = extract::read::read_index(&args.index, &chr);
-
-    let scores =
-        reader(&output).unwrap_or_else(|e| panic!("ERROR: could not read {output:?} -> {e}!"));
-
-    let expanded_output = dir.join(
-        args.fasta
-            .with_extension("rnasamba.tsv")
-            .file_name()
-            .unwrap(),
-    );
-    let mut writer = BufWriter::new(
-        File::create(&expanded_output)
-            .unwrap_or_else(|e| panic!("ERROR: could not open {expanded_output:?} -> {e}!")),
-    );
-
-    for line in scores.lines() {
-        if line.starts_with("sequence_name") {
-            continue;
-        }
-
-        let parts = line.split('\t').collect::<Vec<_>>();
-        let u_id = parts[0].parse::<u32>().unwrap_or_else(|e| {
-            panic!(
-                "ERROR: could not parse u_id from {line} -> {e}! \
-                This is probably a bug in the program."
-            )
-        });
-        let score = parts[1].parse::<f32>().unwrap_or_else(|e| {
-            panic!(
-                "ERROR: could not parse score from {line} -> {e}! \
-                This is probably a bug in the program."
-            )
-        });
-
-        let queries = index
-            .get(&u_id)
-            .unwrap_or_else(|| panic!("ERROR: could not find u_id {u_id} in index {index:?}!"));
-
-        for query in queries {
-            let new_line = format!("{}\t{}", query, score);
-            writeln!(writer, "{}", new_line).unwrap_or_else(|e| {
-                panic!(
-                    "ERROR: could not write to {expanded_output:?} -> {e}! \
-                    This is probably a bug in the program."
-                )
-            });
-        }
-    }
-
-    if !args.keep_temp {
-        isopipe::config::remove_any(&output);
     }
 }

@@ -4,6 +4,7 @@ use simple_logger::init_with_level;
 
 use orf::{
     blast::run_blast,
+    chunk::run_chunk,
     cli::{Args, Commands},
     samba::run_samba,
     tai::run_tai,
