@@ -1,0 +1,23 @@
+[package]
+name = "orf"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dashmap = { version = "6", features = ["rayon"] }
+smol_str = "0.3"
+hashbrown = { version = "0.16", features = ["rayon"] }
+memmap2 = "0.9.5"
+memchr = "2.7.4"
+clap = { version = "4.0", features = ["derive"] }
+rayon = "1.11.0"
+genepred = { version = "0.0.8", features = ["mmap", "rayon"] }
+twobit = "0.2.1"
+num_cpus = "1.17.0"
+simple_logger = "5.0.0"
+log = "0.4.14"
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1

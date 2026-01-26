@@ -1,0 +1,18 @@
+[package]
+name = "tai"
+version = "0.0.2"
+edition = "2024"
+
+[dependencies]
+dashmap = { version = "6", features = ["rayon"] }
+smol_str = "0.3"
+hashbrown = { version = "0.16", features = ["rayon"] }
+memmap2 = "0.9.5"
+memchr = "2.7.4"
+clap = { version = "4.0", features = ["derive"] }
+rayon = "1.11.0"
+genepred = { version = "0.0.8", features = ["mmap", "rayon"] }
+
+[profile.release]
+lto = true
+opt-level = 3

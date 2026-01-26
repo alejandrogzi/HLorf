@@ -1,0 +1,20 @@
+Metadata-Version: 2.4
+Name: translationai
+Version: 1.0
+Summary: TranslationAI: An advanced deep learning framework for precise identification of translation start and end sites within mature mRNA sequences
+Author-email: Xiaojuan Fan <xiaojuanfan05@gmail.com>, Alejandro Gonzales-Irribarren <alejandrxgzi@gmail.com>
+License: GPL-3.0-or-later
+Requires-Python: <3.10,>=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: keras>=2.0.5
+Requires-Dist: numpy>=1.14.0
+Requires-Dist: pandas>=0.24.2
+Requires-Dist: h5py
+Requires-Dist: scikit-learn>=0.20.0
+Requires-Dist: orfipy>=0.0.4
+Requires-Dist: joblib>=1.0.0
+Requires-Dist: setuptools>=61.0
+Provides-Extra: cpu
+Requires-Dist: tensorflow>=1.2.0; extra == "cpu"
+Provides-Extra: gpu
+Requires-Dist: tensorflow-gpu>=1.2.0; extra == "gpu"
