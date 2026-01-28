@@ -2,7 +2,6 @@
 name = "translationai"
 version = "1.0"
 description = "TranslationAI: An advanced deep learning framework for precise identification of translation start and end sites within mature mRNA sequences"
-readme = "README.md"
 authors = [
     { name = "Xiaojuan Fan", email = "xiaojuanfan05@gmail.com" },
     { name = "Alejandro Gonzales-Irribarren", email = "alejandrxgzi@gmail.com" },
@@ -31,7 +30,7 @@ optional-dependencies = { cpu = [
 translationai = "translationai.__main__:main"
 
 [tool.setuptools.packages.find]
-where = ["./tai/tai"]
+where = ["./tai"]
 include = ["translationai"]
 
 [tool.setuptools]
