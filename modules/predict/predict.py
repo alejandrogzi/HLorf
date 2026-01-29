@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 import argparse
 import logging
@@ -193,13 +193,15 @@ def map_to_blocks(
     log.info(f"INFO: Initial size of table: {len(table)}")
     table = table.copy()
     # table["id"] = [id.split("__")[0] for id in table.blast_id] -> replace by prefix
-    table["tag"] = ["#" + id.split("__")[1] for id in table.id]
+
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
 
     bed = pd.read_csv(alignments, sep="\t", header=None)
     merged = (
-        bed.assign(prefix=bed[3].str.split("__").str[0])
+        bed.assign(prefix=bed[3])
         .merge(
-            table[["prefix", "start", "end", "tag", "prob_coding"]],
+            table[["prefix", "start", "end", "prob_coding"]],
             on="prefix",
             how="left",
         )
@@ -212,7 +214,6 @@ def map_to_blocks(
 
     merged[6] = merged["start"]
     merged[7] = merged["end"]
-    merged[3] += merged["tag"]
 
     table = (
         table[table["prob_coding"] >= min_score_max_predictions]
@@ -229,12 +230,12 @@ def map_to_blocks(
     log.info(f"INFO: Final size of table: {len(table)}")
     log.info(f"INFO: Writing predictions to {args.outdir}/{prefix}.predictions.tsv")
 
-    table.drop(columns=["prefix", "tag", "rank"]).to_csv(
-        f"{args.outdir}/{prefix}.predictions.tsv", index=False, header=True, sep="\t"
+    table.drop(columns=["prefix", "rank"]).to_csv(
+        f"{outdir}/{prefix}.predictions.tsv", index=False, header=True, sep="\t"
     )
 
     if args.keep_raw:
-        merged.drop(columns=["prefix", "start", "end", "tag"]).to_csv(
+        merged.drop(columns=["prefix", "start", "end"]).to_csv(
             f"{outdir}/{prefix}.all.predictions.bed",
             sep="\t",
             header=False,
@@ -253,9 +254,9 @@ def map_to_blocks(
     merged["rank"] = merged.groupby("prefix").cumcount() + 1
     merged.loc[merged["rank"] > 1, 3] += "#DU"
 
-    merged.drop(
-        columns=["prefix", "start", "end", "tag", "prob_coding", "rank"]
-    ).to_csv(f"{outdir}/{prefix}.predictions.bed", sep="\t", header=False, index=False)
+    merged.drop(columns=["prefix", "start", "end", "prob_coding", "rank"]).to_csv(
+        f"{outdir}/{prefix}.predictions.bed", sep="\t", header=False, index=False
+    )
 
     return
 
@@ -377,7 +378,7 @@ def read_blast(path: Union[str, PathLike, Path]) -> pd.DataFrame:
 
     # INFO: needs to be the cannonical ID
     # R1_chr1__OR2#NE1 -> R1_chr1 [samba] + R1_chr1:1-10(+) [bed]
-    blast["prefix"] = blast["id"].str.split("__").str[0]
+    blast["prefix"] = blast["id"].str.split("_ORF").str[0]
     blast["key"] = (
         blast["prefix"]
         + ":"
@@ -412,7 +413,9 @@ def read_samba(path: Union[str, PathLike, Path]) -> pd.DataFrame:
     >>> # samba_df = read_samba("my_samba.tsv")
     >>> # print(samba_df.head())
     """
-    return pd.read_csv(path, sep="\t", header=None, names=SAMBA_COLS)
+    df = pd.read_csv(path, sep="\t", usecols=[0,1])
+    df.columns = SAMBA_COLS
+    return df
 
 
 def merge_tables(
