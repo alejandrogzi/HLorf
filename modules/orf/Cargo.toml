@@ -21,3 +21,7 @@ log = "0.4.14"
 lto = true
 opt-level = 3
 codegen-units = 1
+
+[[bin]]
+name = "orf"
+path = "src/main.rs"

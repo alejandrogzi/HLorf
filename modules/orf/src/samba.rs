@@ -11,7 +11,12 @@
 //! learning model trained with true ORFs and false positives. The process is
 //! heavily parallelized to offer fast performance on large datasets.
 
-use crate::cli::SambaArgs;
+use std::io::Write;
+
+use crate::{
+    cli::SambaArgs,
+    utils::{create_fasta, parse_fa},
+};
 
 const WEIGHTS: &str =
     "https://github.com/apcamargo/RNAsamba/raw/refs/heads/master/data/full_length_weights.hdf5";
@@ -40,6 +45,34 @@ pub fn run_samba(args: SambaArgs) {
         weights
     });
 
+    // INFO: if flanks activated, we need to correct the fasta
+    let fasta = if args.upstream_flank > 0 || args.downstream_flank > 0 {
+        let seqs = parse_fa(&args.fasta).unwrap_or_else(|e| {
+            panic!("ERROR: failed to parse FASTA file -> {e}");
+        });
+        let mut writer = create_fasta(&args.fasta, "tmp.strip.fa")
+            .unwrap_or_else(|| panic!("ERROR: failed to create tmp file -> {:?}", args.fasta));
+
+        for (header, seq) in seqs.into_iter() {
+            let stripped = seq[args.upstream_flank..seq.len() - args.downstream_flank].to_vec();
+            writer
+                .write_all(format!(">{}\n", header).as_bytes())
+                .unwrap_or_else(|e| {
+                    panic!("ERROR: failed to write to file -> {e}");
+                });
+            writer.write_all(&stripped).unwrap_or_else(|e| {
+                panic!("ERROR: failed to write to file -> {e}");
+            });
+            writer.write_all(b"\n").unwrap_or_else(|e| {
+                panic!("ERROR: failed to write to file -> {e}");
+            });
+        }
+
+        args.fasta.with_extension("tmp.strip.fa")
+    } else {
+        args.fasta.clone()
+    };
+
     let output = dir.join(
         args.fasta
             .with_extension("tmp.samba.tsv")
@@ -50,7 +83,7 @@ pub fn run_samba(args: SambaArgs) {
     let cmd = format!(
         "rnasamba classify {output} {input} {weights}",
         output = output.display(),
-        input = args.fasta.display(),
+        input = fasta.display(),
         weights = weights.display()
     );
 

@@ -247,4 +247,22 @@ pub struct SambaArgs {
         help = "Path to model weights file"
     )]
     pub weights: Option<PathBuf>,
+
+    #[arg(
+        short = 'u',
+        long = "upstream-flank",
+        required = false,
+        help = "Number of bases upstream of the TSS to include in the chunk",
+        default_value = "0"
+    )]
+    pub upstream_flank: usize,
+
+    #[arg(
+        short = 'd',
+        long = "downstream-flank",
+        required = false,
+        help = "Number of bases downstream of the TSS to include in the chunk",
+        default_value = "0"
+    )]
+    pub downstream_flank: usize,
 }
