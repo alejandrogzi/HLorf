@@ -1,2 +1,6 @@
 *target/
 *.egg.info/
+*.ruff_cache/
+*__pycache__/
+*.venv/
+*test_config
