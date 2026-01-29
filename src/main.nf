@@ -1,4 +1,4 @@
-#!/usr/bin/env nextflow
+//!/usr/bin/env nextflow
 
 // params.regions = "/home/alejandro/Documents/projects/hiller/champagne/pisco/files/hg38/TOGA/vs_ROSCfam/query_annotation.bed"
 params.regions = "/home/alejandro/Documents/projects/HLorf/test.bed"
@@ -6,9 +6,13 @@ params.sequence = "/home/alejandro/Documents/projects/hiller/champagne/pisco/fil
 params.database = "/home/alejandro/Documents/projects/HLorf/swissprot_vertebrates.dmnd"
 
 process CHUNKER {
+    container 'orf-chunk:latest'
+    containerOptions '--pull=never'
+
     input:
     path(regions)
     path(sequence)
+    val(chunk_size)
 
     output:
     path('tmp') , emit: chunks
@@ -22,7 +26,12 @@ process CHUNKER {
     def upstream = task.ext.upstream ?: 1000
     def downstream = task.ext.downstream ?: 1000
     """
-    chunker --regions $regions --sequence $sequence --chunks 250 -u $upstream -d $downstream
+    orf chunk \\
+    --regions $regions \\
+    --sequence $sequence \\
+    --chunks $chunk_size \\
+    -u $upstream \\
+    -d $downstream
     """
 
     stub:
@@ -34,6 +43,9 @@ process CHUNKER {
 }
 
 process TRANSLATION {
+    container 'orf-tai:latest'
+    containerOptions '--pull=never'
+
     input:
     tuple val(meta), path(bed), path(sequence)
 
@@ -47,7 +59,13 @@ process TRANSLATION {
     def upstream = task.ext.upstream ?: 1000
     def downstream = task.ext.downstream ?: 1000
     """
-    tai --fasta $sequence --bed $bed --outdir ${meta.id} -u $upstream -d $downstream
+    orf tai \\
+    --fasta $sequence \\
+    --bed $bed \\
+    --outdir ${meta.id} \\
+    -u $upstream \\
+    -d $downstream
+    
     mv ${meta.id}/tai/*result ${meta.id}/ && rm -rf ${meta.id}/tai
     """
 
@@ -59,15 +77,54 @@ process TRANSLATION {
     """
 }
 
-process RNASAMBA {}
+process RNASAMBA {
+    container 'orf-samba:latest'
+    containerOptions '--pull=never'
 
-process BLAST {
     input:
-    tuple val(meta), path(bed), path(sequence), path(predictions)
-    val(database)
+    tuple val(meta), path(bed), path(sequence)
 
     output:
-    tuple val(meta), path("${meta.id}/*result"), emit: orfs
+    tuple val(meta), path("${meta.id}/*tsv"), emit: samba
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    def args = task.ext.args ?: ''
+    def upstream = task.ext.upstream ?: 1000
+    def downstream = task.ext.downstream ?: 1000
+    """
+    orf samba \\
+    --fasta $sequence \\
+    --outdir ${meta.id} \\
+    --upstream-flank $upstream \\
+    --downstream-flank $downstream \\
+    $args
+
+    mv ${meta.id}/samba/*tsv ${meta.id}/ && rm -rf ${meta.id}/samba
+    rm *strip.fa
+    """
+
+    stub:
+    """
+    touch *strip.fa
+    touch ${meta.id}
+    touch ${meta.id}/samba
+    touch ${meta.id}/samba/*
+    """
+}
+
+process BLAST {
+    container 'orf-blast:latest'
+    containerOptions '--pull=never'
+
+    input:
+    tuple val(meta), path(bed), path(sequence), path(predictions)
+    each path(database)
+
+    output:
+    tuple val(meta), path(bed), path("${meta.id}/*result"), emit: blast
 
     when:
     task.ext.when == null || task.ext.when
@@ -79,7 +136,7 @@ process BLAST {
     def upstream = task.ext.upstream ?: 1000
     def downstream = task.ext.downstream ?: 1000
     """
-    blast \\
+    orf blast \\
     --fasta $sequence \\
     --bed $bed \\
     --tai $predictions \\
@@ -102,11 +159,75 @@ process BLAST {
     """
 }
 
+process PREDICT {
+    container 'orf-predict:latest'
+    containerOptions '--pull=never'
+
+    input:
+    tuple val(meta), path(bed), path(blast), path(samba)
+
+    output:
+    tuple val(meta), path("${meta.id}/*bed"), path("${meta.id}/*tsv"), emit: orfs
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    def args = task.ext.args ?: ''
+    def threshold = task.ext.threshold ?: 0.03
+    def min_score_max_predictions = task.ext.min_score_max_predictions ?: 0.70
+    def max_predictions = task.ext.max_predictions ?: 1
+    """
+    predict.py \\
+    --blast $blast \\
+    --samba $samba \\
+    --alignments $bed \\
+    --outdir ${meta.id} \\
+    --prefix ${meta.id} \\
+    --threshold $threshold \\
+    --min-score-max-predictions $min_score_max_predictions \\
+    --max-predictions $max_predictions
+    """
+
+    stub:
+    """
+    touch ${meta.id}
+    touch ${meta.id}/*bed
+    touch ${meta.id}/*tsv
+    """
+}
+
+process CONCAT {
+    input:
+    tuple val(meta), path(beds, stageAs: 'bed_?/*'), path(tsvs, stageAs: 'tsv_?/*')
+
+    output:
+    tuple path("*bed"), path("*tsv"), emit: files
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    """
+    cat bed_*/*.bed > all.bed
+    cat tsv_*/*.tsv > all.tsv    
+    """
+
+    stub:
+    """
+    touch all.*
+    """
+}
+
 workflow {
     ch_regions = Channel.fromPath(params.regions)
     ch_sequence = Channel.fromPath(params.sequence)
 
-    CHUNKER(ch_regions, ch_sequence)
+    CHUNKER(
+      ch_regions, 
+      ch_sequence,
+      250,
+    )
 
     CHUNKER.out.chunked_regions
         .flatten()
@@ -119,18 +240,38 @@ workflow {
         .set { ch_pairs }
 
     TRANSLATION(
-      ch_pairs
+        ch_pairs
     )
 
-    TRANSLATION.out.predictions.view()
+    RNASAMBA(
+        ch_pairs,
+    )
 
-     BLAST(
-        TRANSLATION.out.predictions,
-        params.database
-     )
-     .map { meta, prediction -> prediction }
-     .collect()
-     .set { ch_predictions }
+    BLAST(
+      TRANSLATION.out.predictions,
+      Channel.fromPath(params.database)
+    )
+    .join(RNASAMBA.out.samba)
+    .set { ch_candidates }
 
-     ch_predictions.view()
+    PREDICT(
+      ch_candidates
+    )
+
+    PREDICT.out.orfs
+        .toList()
+        .map { items ->
+            def beds = items.collect { meta, bed, tsv -> bed }
+            def tsvs = items.collect { meta, bed, tsv -> tsv }
+            tuple([id: 'all'], beds, tsvs)
+        }
+        .set { ch_all }
+
+    ch_all.view()
+
+    CONCAT(
+      ch_all
+    )
+
+    CONCAT.out.files.view()
 }
