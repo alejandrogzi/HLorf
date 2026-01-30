@@ -3,7 +3,7 @@ process BLAST {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container 'orf-blast:latest'
+    container 'alejandrogzi/orf-blast:latest'
 
     input:
     tuple val(meta), path(bed), path(sequence), path(predictions)

@@ -3,7 +3,7 @@ process PREDICT {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container 'orf-predict:latest'
+    container 'alejandrogzi/orf-predict:latest'
 
     input:
     tuple val(meta), path(bed), path(blast), path(samba)

@@ -3,7 +3,9 @@ process CONCAT {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container 'ubuntu:24.04'
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/ubuntu:24.04' :
+        'quay.io/biocontainers/python:3.10' }"
 
     input:
     tuple val(meta), path(beds, stageAs: 'bed_?/*'), path(tsvs, stageAs: 'tsv_?/*')

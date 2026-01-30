@@ -3,7 +3,7 @@ process TRANSLATION {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container 'orf-tai:latest'
+    container 'alejandrogzi/orf-tai:latest'
 
     input:
     tuple val(meta), path(bed), path(sequence)
