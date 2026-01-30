@@ -413,7 +413,7 @@ def read_samba(path: Union[str, PathLike, Path]) -> pd.DataFrame:
     >>> # samba_df = read_samba("my_samba.tsv")
     >>> # print(samba_df.head())
     """
-    df = pd.read_csv(path, sep="\t", usecols=[0,1])
+    df = pd.read_csv(path, sep="\t", usecols=[0, 1])
     df.columns = SAMBA_COLS
     return df
 
