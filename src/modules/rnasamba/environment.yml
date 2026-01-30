@@ -1,0 +1,14 @@
+name: rnasamba
+channels:
+  - conda-forge
+dependencies:
+  - python=3.6
+  - pip
+  - setuptools<60
+  - wheel
+  - biopython==1.74
+  - numpy==1.16.5
+  - h5py==2.10.0
+  - keras==2.2.5
+  - tensorflow==1.14.0
+  - rnasamba==0.2.5

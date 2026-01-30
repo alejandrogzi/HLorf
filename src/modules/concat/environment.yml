@@ -1,0 +1,5 @@
+name: concat
+channels:
+  - conda-forge
+dependencies:
+  - coreutils

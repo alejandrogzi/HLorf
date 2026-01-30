@@ -1,0 +1,9 @@
+name: blast
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.9
+  - pip
+  - diamond
+  - orfipy>=0.0.4

@@ -1,264 +1,58 @@
-//!/usr/bin/env nextflow
+#!/usr/bin/env nextflow
+nextflow.enable.dsl=2
 
-// params.regions = "/home/alejandro/Documents/projects/hiller/champagne/pisco/files/hg38/TOGA/vs_ROSCfam/query_annotation.bed"
-params.regions = "/home/alejandro/Documents/projects/HLorf/test.bed"
-params.sequence = "/home/alejandro/Documents/projects/hiller/champagne/pisco/files/ROSCfam/fasta/ROSCfam.2bit"
-params.database = "/home/alejandro/Documents/projects/HLorf/swissprot_vertebrates.dmnd"
+// Copyright (c) 2025 Alejandro Gonzalez-Irribarren <alejandrxgzi@gmail.com>
+// Distributed under the terms of the Apache License, Version 2.0.
 
-process CHUNKER {
-    container 'orf-chunk:latest'
-    containerOptions '--pull=never'
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    IMPORT LOCAL MODULES/SUBWORKFLOWS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 
-    input:
-    path(regions)
-    path(sequence)
-    val(chunk_size)
+include { CHUNKER }      from './modules/chunker/main.nf'
+include { CONCAT }       from './modules/concat/main.nf'
+include { PREDICT_ORFS } from './subworkflows/predict_orfs/main.nf'
+include { EMAIL }        from './modules/email/main.nf'
 
-    output:
-    path('tmp') , emit: chunks
-    path('tmp/*bed') , emit: chunked_regions
-    path('tmp/*fa') , emit: chunked_sequences
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    LOCAL SUBWORKFLOWS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 
-    when:
-    task.ext.when == null || task.ext.when
+workflow HLORF {
+    def ch_regions  = Channel.fromPath(params.regions)
+    def ch_sequence = Channel.fromPath(params.sequence)
+    def ch_database = Channel.fromPath(params.database)
+    def chunkSize   = params.chunk_size ?: 250
 
-    script:
-    def upstream = task.ext.upstream ?: 1000
-    def downstream = task.ext.downstream ?: 1000
-    """
-    orf chunk \\
-    --regions $regions \\
-    --sequence $sequence \\
-    --chunks $chunk_size \\
-    -u $upstream \\
-    -d $downstream
-    """
-
-    stub:
-    """
-    touch tmptai --fasta tmp_0.fa --bed tmp_0.bed --outdir tmp_0
-    touch tmp/*bed
-    touch tmp/*fa
-    """
-}
-
-process TRANSLATION {
-    container 'orf-tai:latest'
-    containerOptions '--pull=never'
-
-    input:
-    tuple val(meta), path(bed), path(sequence)
-
-    output:
-    tuple val(meta), path(bed), path(sequence), path("${meta.id}/*result"), emit: predictions
-
-    when:
-    task.ext.when == null || task.ext.when
-
-    script:
-    def upstream = task.ext.upstream ?: 1000
-    def downstream = task.ext.downstream ?: 1000
-    """
-    orf tai \\
-    --fasta $sequence \\
-    --bed $bed \\
-    --outdir ${meta.id} \\
-    -u $upstream \\
-    -d $downstream
-    
-    mv ${meta.id}/tai/*result ${meta.id}/ && rm -rf ${meta.id}/tai
-    """
-
-    stub:
-    """
-    touch ${meta.id}
-    touch ${meta.id}/tai
-    touch ${meta.id}/tai/*result
-    """
-}
-
-process RNASAMBA {
-    container 'orf-samba:latest'
-    containerOptions '--pull=never'
-
-    input:
-    tuple val(meta), path(bed), path(sequence)
-
-    output:
-    tuple val(meta), path("${meta.id}/*tsv"), emit: samba
-
-    when:
-    task.ext.when == null || task.ext.when
-
-    script:
-    def args = task.ext.args ?: ''
-    def upstream = task.ext.upstream ?: 1000
-    def downstream = task.ext.downstream ?: 1000
-    """
-    orf samba \\
-    --fasta $sequence \\
-    --outdir ${meta.id} \\
-    --upstream-flank $upstream \\
-    --downstream-flank $downstream \\
-    $args
-
-    mv ${meta.id}/samba/*tsv ${meta.id}/ && rm -rf ${meta.id}/samba
-    rm *strip.fa
-    """
-
-    stub:
-    """
-    touch *strip.fa
-    touch ${meta.id}
-    touch ${meta.id}/samba
-    touch ${meta.id}/samba/*
-    """
-}
-
-process BLAST {
-    container 'orf-blast:latest'
-    containerOptions '--pull=never'
-
-    input:
-    tuple val(meta), path(bed), path(sequence), path(predictions)
-    each path(database)
-
-    output:
-    tuple val(meta), path(bed), path("${meta.id}/*result"), emit: blast
-
-    when:
-    task.ext.when == null || task.ext.when
-
-    script:
-    def args = task.ext.args ?: ''
-    def orf_min_len = task.ext.orf_min_len ?: 50
-    def orf_min_percent = task.ext.orf_min_percent ?: 0.25
-    def upstream = task.ext.upstream ?: 1000
-    def downstream = task.ext.downstream ?: 1000
-    """
-    orf blast \\
-    --fasta $sequence \\
-    --bed $bed \\
-    --tai $predictions \\
-    --outdir ${meta.id} \\
-    --orf-min-len $orf_min_len \\
-    --orf-min-percent $orf_min_percent \\
-    --database $database \\
-    --upstream-flank $upstream \\
-    --downstream-flank $downstream \\
-    $args
-
-    mv ${meta.id}/orf/*result ${meta.id}/ && rm -rf ${meta.id}/orf
-    """
-
-    stub:
-    """
-    touch ${meta.id}
-    touch ${meta.id}/orf
-    touch ${meta.id}/orf/*
-    """
-}
-
-process PREDICT {
-    container 'orf-predict:latest'
-    containerOptions '--pull=never'
-
-    input:
-    tuple val(meta), path(bed), path(blast), path(samba)
-
-    output:
-    tuple val(meta), path("${meta.id}/*bed"), path("${meta.id}/*tsv"), emit: orfs
-
-    when:
-    task.ext.when == null || task.ext.when
-
-    script:
-    def args = task.ext.args ?: ''
-    def threshold = task.ext.threshold ?: 0.03
-    def min_score_max_predictions = task.ext.min_score_max_predictions ?: 0.70
-    def max_predictions = task.ext.max_predictions ?: 1
-    """
-    predict.py \\
-    --blast $blast \\
-    --samba $samba \\
-    --alignments $bed \\
-    --outdir ${meta.id} \\
-    --prefix ${meta.id} \\
-    --threshold $threshold \\
-    --min-score-max-predictions $min_score_max_predictions \\
-    --max-predictions $max_predictions
-    """
-
-    stub:
-    """
-    touch ${meta.id}
-    touch ${meta.id}/*bed
-    touch ${meta.id}/*tsv
-    """
-}
-
-process CONCAT {
-    input:
-    tuple val(meta), path(beds, stageAs: 'bed_?/*'), path(tsvs, stageAs: 'tsv_?/*')
-
-    output:
-    tuple path("*bed"), path("*tsv"), emit: files
-
-    when:
-    task.ext.when == null || task.ext.when
-
-    script:
-    """
-    cat bed_*/*.bed > all.bed
-    cat tsv_*/*.tsv > all.tsv    
-    """
-
-    stub:
-    """
-    touch all.*
-    """
-}
-
-workflow {
-    ch_regions = Channel.fromPath(params.regions)
-    ch_sequence = Channel.fromPath(params.sequence)
+    def ch_versions = Channel.empty()
 
     CHUNKER(
-      ch_regions, 
-      ch_sequence,
-      250,
+        ch_regions,
+        ch_sequence,
+        chunkSize,
     )
 
     CHUNKER.out.chunked_regions
         .flatten()
-        .map { it -> [[id: it.baseName], it] }
+        .map { region -> [[id: region.baseName], region] }
         .join(
             CHUNKER.out.chunked_sequences
                 .flatten()
-                .map { it -> [[id: it.baseName], it] }
+                .map { fasta -> [[id: fasta.baseName], fasta] }
         )
         .set { ch_pairs }
 
-    TRANSLATION(
-        ch_pairs
-    )
+    ch_versions = ch_versions.mix(CHUNKER.out.versions)
 
-    RNASAMBA(
+    PREDICT_ORFS(
         ch_pairs,
+        ch_database
     )
 
-    BLAST(
-      TRANSLATION.out.predictions,
-      Channel.fromPath(params.database)
-    )
-    .join(RNASAMBA.out.samba)
-    .set { ch_candidates }
-
-    PREDICT(
-      ch_candidates
-    )
-
-    PREDICT.out.orfs
+    PREDICT_ORFS.out.orfs
         .toList()
         .map { items ->
             def beds = items.collect { meta, bed, tsv -> bed }
@@ -267,11 +61,101 @@ workflow {
         }
         .set { ch_all }
 
-    ch_all.view()
+    ch_versions = ch_versions.mix(PREDICT_ORFS.out.versions)
 
     CONCAT(
-      ch_all
+        ch_all
     )
 
-    CONCAT.out.files.view()
+    PREDICT_ORFS.out.counts
+    .map { meta, initial, tai, blast, samba, all, unique, kept -> 
+        def line = "${meta.id}\t${initial}\t${tai}\t${blast}\t${samba}\t${all}\t${unique}\t${kept}"
+        return line
+    }
+    .collectFile(
+      name: 'counts.tsv', 
+      newLine: true, 
+      storeDir: "${params.outdir}/samplesheets"
+    )
+    .set { ch_counts }
+
+    ch_versions = ch_versions.mix(CONCAT.out.versions)
+    ch_pipeline_versions = ch_versions
+        .collectFile(
+            name:      "HLorf.versions.yml",
+            storeDir:  "${params.outdir}/pipeline_info",
+            sort:      true,
+            keepHeader: false,
+            newLine:   true
+        )
+
+    emit:
+    files = CONCAT.out.files
+    counts = ch_counts
+    versions = ch_pipeline_versions
 }
+
+workflow PIPELINE_COMPLETION {
+
+    take:
+    email
+    email_on_fail
+    plaintext_email
+    outdir
+    use_mailx
+    files
+    counts
+    ch_versions
+
+    main:
+
+    if (params.sent_email) {
+        EMAIL (
+            email,
+            email_on_fail,
+            plaintext_email,
+            outdir,
+            use_mailx,
+            files,
+            counts,
+            ch_versions
+        )
+    }
+
+    workflow.onError {
+        log.error "ERROR: Pipeline failed!"
+        log.error "ERROR: Please check the following error message:\n${workflow.errorMessage}"
+        log.error "ERROR: Refer to github issues: https://github.com/alejandrogzi/HLorf/issues"
+    }
+
+    workflow.onComplete {
+        log.info "\nPipeline completed successfully!"
+    }
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    RUN MAIN WORKFLOW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+workflow {
+    HLORF ()
+
+    PIPELINE_COMPLETION (
+        params.email_to,
+        params.email_on_fail,
+        params.plaintext_email,
+        params.outdir,
+        params.use_mailx,
+        HLORF.out.files,
+        HLORF.out.counts,
+        HLORF.out.versions
+    )
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    THE END
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
