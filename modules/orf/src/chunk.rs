@@ -11,7 +11,7 @@
 //! learning model trained with true ORFs and false positives. The process is
 //! heavily parallelized to offer fast performance on large datasets.
 
-use genepred::{Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer, bed::BedFormat};
+use genepred::{bed::BedFormat, Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer};
 use memchr::memchr;
 use memmap2::Mmap;
 use rayon::prelude::*;
@@ -20,7 +20,7 @@ use twobit::TwoBitFile;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{
-    fs::{File, create_dir_all},
+    fs::{create_dir_all, File},
     io::{BufWriter, Write},
 };
 
@@ -106,21 +106,21 @@ fn write_chunk(
 
         let mut target: Vec<u8> = vec![];
         for (idx, feature) in record.exons().iter().enumerate() {
-            let feature_start = feature.0 as usize;
-            let feature_end = feature.1 as usize;
+            let exon_start = feature.0 as usize;
+            let exon_end = feature.1 as usize;
 
             if idx == 0 {
                 if record.exon_count() == 1 {
                     target.extend_from_slice(
-                        &seq[feature_start - upstream_flank..feature_end + downstream_flank],
+                        &seq[exon_start - upstream_flank..exon_end + downstream_flank],
                     );
                 } else {
-                    target.extend_from_slice(&seq[feature_start - upstream_flank..feature_start]);
+                    target.extend_from_slice(&seq[exon_start - upstream_flank..exon_end]);
                 }
             } else if idx == record.exons().len() - 1 {
-                target.extend_from_slice(&seq[feature_start..feature_end + downstream_flank]);
+                target.extend_from_slice(&seq[exon_start..exon_end + downstream_flank]);
             } else {
-                target.extend_from_slice(&seq[feature_start..feature_end]);
+                target.extend_from_slice(&seq[exon_start..exon_end]);
             }
         }
 

@@ -220,14 +220,10 @@ fn tai(
                 stop - downstream_flank as u64,
             );
 
-            println!(
-                "WARN: orf_start -> {orf_start:?}, orf_end -> {orf_end:?} for start -> {start:?}, stop -> {stop:?}"
-            );
-
             // WARN: skipping unreliable ORFs for the current alignment
             if (orf_start == 0 && orf_end == 0) || orf_start > orf_end || orf_end - orf_start < 3 {
                 println!(
-                    "WARN: skipping unreliable ORF -> {orf:?} with mapped start -> {orf_start:?}, end -> {orf_end:?}"
+                    "WARN: skipping unreliable ORF -> {orf:?} with mapped start -> {orf_start:?}, end -> {orf_end:?} for start -> {start:?}, stop -> {stop:?}"
                 );
                 continue;
             }
