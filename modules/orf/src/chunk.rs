@@ -39,6 +39,7 @@ pub fn run_chunk(args: ChunkArgs) {
             &genome,
             args.upstream_flank,
             args.downstream_flank,
+            args.ignore_errors,
         ),
         Some(RegionFormat::Gtf) => process_reader::<Gtf>(
             &args.regions,
@@ -47,6 +48,7 @@ pub fn run_chunk(args: ChunkArgs) {
             &genome,
             args.upstream_flank,
             args.downstream_flank,
+            args.ignore_errors,
         ),
         Some(RegionFormat::Gff) => process_reader::<Gff>(
             &args.regions,
@@ -55,6 +57,7 @@ pub fn run_chunk(args: ChunkArgs) {
             &genome,
             args.upstream_flank,
             args.downstream_flank,
+            args.ignore_errors,
         ),
         None => panic!("ERROR: Unsupported file format"),
     }
@@ -67,6 +70,7 @@ fn process_reader<R>(
     genome: &HashMap<Vec<u8>, Vec<u8>>,
     upstream_flank: usize,
     downstream_flank: usize,
+    ignore_errors: bool,
 ) where
     R: BedFormat + Into<GenePred> + Send,
 {
@@ -75,7 +79,15 @@ fn process_reader<R>(
         .par_chunks(chunks)
         .unwrap_or_else(|e| panic!("{}", e))
         .for_each(|(idx, chunk)| {
-            write_chunk(idx, chunk, genome, outdir, upstream_flank, downstream_flank)
+            write_chunk(
+                idx,
+                chunk,
+                genome,
+                outdir,
+                upstream_flank,
+                downstream_flank,
+                ignore_errors,
+            )
         });
 }
 
@@ -86,6 +98,7 @@ fn write_chunk(
     outdir: &Path,
     upstream_flank: usize,
     downstream_flank: usize,
+    ignore_errors: bool,
 ) {
     let tmp = outdir.join(format!("tmp_{}.bed", idx));
     let mut writer = BufWriter::new(File::create(&tmp).unwrap_or_else(|e| panic!("{}", e)));
@@ -93,73 +106,158 @@ fn write_chunk(
     let mut f_writer =
         BufWriter::new(File::create(tmp.with_extension("fa")).unwrap_or_else(|e| panic!("{}", e)));
 
-    chunk.into_iter().filter_map(Result::ok).for_each(|record| {
-        // record.set_start(record.start() - upstream_flank as u64);
-        // record.set_end(record.end() + downstream_flank as u64);
-
-        let seq = genome.get(&record.chrom).unwrap_or_else(|| {
-            panic!(
-                "ERROR: Chromosome {} not found!",
-                std::str::from_utf8(&record.chrom).unwrap()
-            )
-        });
-
-        let mut target: Vec<u8> = vec![];
-        for (idx, feature) in record.exons().iter().enumerate() {
-            let exon_start = feature.0 as usize;
-            let exon_end = feature.1 as usize;
-
-            if idx == 0 {
-                if record.exon_count() == 1 {
-                    target.extend_from_slice(
-                        &seq[exon_start - upstream_flank..exon_end + downstream_flank],
-                    );
-                } else {
-                    target.extend_from_slice(&seq[exon_start - upstream_flank..exon_end]);
-                }
-            } else if idx == record.exons().len() - 1 {
-                target.extend_from_slice(&seq[exon_start..exon_end + downstream_flank]);
-            } else {
-                target.extend_from_slice(&seq[exon_start..exon_end]);
+    dbg!(chunk.len());
+    chunk
+        .into_iter()
+        .filter_map(|result| match result {
+            Ok(record) => Some(record),
+            Err(e) => {
+                eprintln!("WARN: Failed to process record: {}", e);
+                None
             }
-        }
+        })
+        .for_each(|record| {
+            let seq = genome.get(&record.chrom).unwrap_or_else(|| {
+                panic!(
+                    "ERROR: Chromosome {} not found!",
+                    std::str::from_utf8(&record.chrom).unwrap()
+                )
+            });
 
-        match &record.strand {
-            Some(Strand::Forward) => {}
-            Some(Strand::Reverse) => {
-                target.reverse();
+            let mut target = extract_seq(
+                &record,
+                &seq,
+                upstream_flank,
+                downstream_flank,
+                ignore_errors,
+            );
 
-                for base in target.iter_mut() {
-                    *base = match *base {
-                        b'A' => b'T',
-                        b'C' => b'G',
-                        b'G' => b'C',
-                        b'T' => b'A',
-                        b'N' => b'N',
-                        _ => panic!("ERROR: Invalid base"),
+            match &record.strand {
+                Some(Strand::Forward) => {}
+                Some(Strand::Reverse) => {
+                    target.reverse();
+
+                    for base in target.iter_mut() {
+                        *base = match *base {
+                            b'A' => b'T',
+                            b'C' => b'G',
+                            b'G' => b'C',
+                            b'T' => b'A',
+                            b'N' => b'N',
+                            _ => panic!("ERROR: Invalid base"),
+                        }
                     }
                 }
+                Some(Strand::Unknown) | None => {}
             }
-            Some(Strand::Unknown) | None => {}
-        }
 
-        Writer::<Bed12>::from_record(&record, &mut writer)
-            .unwrap_or_else(|e| panic!("ERROR: Cannot write record to file: {}", e));
+            Writer::<Bed12>::from_record(&record, &mut writer)
+                .unwrap_or_else(|e| panic!("ERROR: Cannot write record to file: {}", e));
 
-        f_writer.write_all(b">").unwrap_or_else(|e| panic!("{}", e));
-        f_writer
-            .write_all(record.name().unwrap())
-            .unwrap_or_else(|e| panic!("{}", e));
-        f_writer
-            .write_all(b"\n")
-            .unwrap_or_else(|e| panic!("{}", e));
-        f_writer
-            .write_all(&target)
-            .unwrap_or_else(|e| panic!("{}", e));
-        f_writer
-            .write_all(b"\n")
-            .unwrap_or_else(|e| panic!("{}", e));
-    });
+            f_writer.write_all(b">").unwrap_or_else(|e| panic!("{}", e));
+            f_writer
+                .write_all(record.name().unwrap())
+                .unwrap_or_else(|e| panic!("{}", e));
+            f_writer
+                .write_all(b"\n")
+                .unwrap_or_else(|e| panic!("{}", e));
+            f_writer
+                .write_all(&target)
+                .unwrap_or_else(|e| panic!("{}", e));
+            f_writer
+                .write_all(b"\n")
+                .unwrap_or_else(|e| panic!("{}", e));
+        });
+}
+
+fn slice_range_for_exon(
+    exon_idx: usize,
+    exon_count: usize,
+    exon_start: usize,
+    exon_end: usize,
+    upstream_flank: usize,
+    downstream_flank: usize,
+) -> std::ops::Range<usize> {
+    let is_first = exon_idx == 0;
+    let is_last = exon_idx + 1 == exon_count;
+
+    let start = if is_first {
+        exon_start.saturating_sub(upstream_flank)
+    } else {
+        exon_start
+    };
+
+    let end = if is_last {
+        exon_end.saturating_add(downstream_flank)
+    } else {
+        exon_end
+    };
+
+    start..end
+}
+
+fn extend_or_handle_oob(
+    record: &GenePred,
+    target: &mut Vec<u8>,
+    seq: &[u8],
+    range: std::ops::Range<usize>,
+    exon_idx: usize,
+    ignore_errors: bool,
+) {
+    if let Some(slice) = seq.get(range.clone()) {
+        target.extend_from_slice(slice);
+        return;
+    }
+
+    // Out of bounds
+    if ignore_errors {
+        eprintln!(
+            "WARN: out-of-bounds slice for {} exon {}: {:?} (seq_len={})",
+            &record,
+            exon_idx,
+            range,
+            seq.len()
+        );
+    } else {
+        panic!(
+            "ERROR: out-of-bounds slice for {} exon {}: {:?} (seq_len={})",
+            &record,
+            exon_idx,
+            range,
+            seq.len()
+        );
+    }
+}
+
+fn extract_seq(
+    record: &GenePred,
+    seq: &[u8],
+    upstream_flank: usize,
+    downstream_flank: usize,
+    ignore_errors: bool,
+) -> Vec<u8> {
+    let exons = record.exons();
+    let exon_count = exons.len();
+
+    let mut target = Vec::new();
+
+    for (idx, (start, end)) in exons.iter().enumerate() {
+        let exon_start = *start as usize;
+        let exon_end = *end as usize;
+
+        let range = slice_range_for_exon(
+            idx,
+            exon_count,
+            exon_start,
+            exon_end,
+            upstream_flank,
+            downstream_flank,
+        );
+
+        extend_or_handle_oob(record, &mut target, seq, range, idx, ignore_errors);
+    }
+
+    target
 }
 
 #[derive(Clone, Copy)]

@@ -220,6 +220,14 @@ pub struct ChunkArgs {
         default_value = "0"
     )]
     pub downstream_flank: usize,
+
+    #[arg(
+        short = 'I',
+        long = "ignore-errors",
+        help = "Ignore slicing errors coming from out-of-bounds coordinates",
+        action = clap::ArgAction::SetTrue
+    )]
+    pub ignore_errors: bool,
 }
 
 #[derive(Debug, Parser)]
