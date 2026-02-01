@@ -54,6 +54,11 @@ pub fn run_samba(args: SambaArgs) {
             .unwrap_or_else(|| panic!("ERROR: failed to create tmp file -> {:?}", args.fasta));
 
         for (header, seq) in seqs.into_iter() {
+            if seq.is_empty() {
+                println!("WARN: empty sequence for header -> {header}");
+                continue;
+            }
+
             let stripped = seq
                 .get(args.upstream_flank..seq.len() - args.downstream_flank)
                 .unwrap_or_else(|| {
