@@ -1,6 +1,11 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+pub const NMD_DISTANCE: u64 = 55; // 55 bp
+pub const WEAK_NMD_DISTANCE: i64 = 80; // 85 bp
+pub const ATG_DISTANCE: u64 = 100; // 100 bp
+pub const BIG_EXON_DIST_TO_EJ: u64 = 400; // 400 bp
+
 #[derive(Debug, Parser)]
 #[command(name = "orf", about = "Open reading frame pipeline wrapper", version = env!("CARGO_PKG_VERSION"))]
 pub struct Args {
@@ -119,6 +124,42 @@ pub struct BlastArgs {
         default_value = "0"
     )]
     pub downstream_flank: usize,
+
+    #[arg(
+        short = 'n',
+        long = "nmd-distance",
+        help = "Distance to consider NMD",
+        value_name = "DISTANCE",
+        default_value_t = NMD_DISTANCE,
+    )]
+    pub nmd_distance: u64,
+
+    #[arg(
+        short = 'w',
+        long = "weak-nmd-distance",
+        help = "Distance to consider weak NMD",
+        value_name = "DISTANCE",
+        default_value_t = WEAK_NMD_DISTANCE,
+    )]
+    pub weak_nmd_distance: i64,
+
+    #[arg(
+        short = 'a',
+        long = "atg-distance",
+        help = "Distance to consider ATG",
+        value_name = "DISTANCE",
+        default_value_t = ATG_DISTANCE,
+    )]
+    pub atg_distance: u64,
+
+    #[arg(
+        short = 'e',
+        long = "big-exon-dist-to-ej",
+        help = "Distance to consider big exon to exon junction",
+        value_name = "DISTANCE",
+        default_value_t = BIG_EXON_DIST_TO_EJ,
+    )]
+    pub big_exon_dist_to_ej: u64,
 }
 
 #[derive(Debug, Parser)]

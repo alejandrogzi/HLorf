@@ -12,7 +12,7 @@
 //! heavily parallelized to offer fast performance on large datasets.
 
 use genepred::{Bed12, GenePred};
-use hashbrown::{HashMap, hash_map::Entry};
+use hashbrown::{hash_map::Entry, HashMap};
 use memchr::memchr;
 use memmap2::Mmap;
 
@@ -20,7 +20,7 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::str::{FromStr, from_utf8};
+use std::str::{from_utf8, FromStr};
 use std::sync::Arc;
 
 use crate::{cli::BlastArgs, consts::*, utils::*};
@@ -67,7 +67,17 @@ pub fn run_blast(args: BlastArgs) {
         "M".as_bytes(),
     );
 
-    let table = get_table(orfs, bed, &dir, args.tai);
+    let table = get_table(
+        orfs,
+        bed,
+        &dir,
+        args.tai,
+        args.nmd_distance,
+        args.weak_nmd_distance,
+        args.atg_distance,
+        args.big_exon_dist_to_ej,
+    );
+
     __run_diamond(table, args.database, &dir);
 }
 
@@ -1001,6 +1011,10 @@ pub fn get_table(
     mut bed: HashMap<String, GenePred>,
     outdir: &Path,
     tai: Option<PathBuf>,
+    nmd_distance: u64,
+    weak_nmd_distance: i64,
+    atg_distance: u64,
+    big_exon_dist_to_ej: u64,
 ) -> HashMap<usize, Vec<String>> {
     // INFO: sequence index -> vec of constructed lines
     let mut table = HashMap::new();
@@ -1069,8 +1083,18 @@ pub fn get_table(
                     );
                 }
 
+                let nmd_type = detect_nmd(
+                    gp,
+                    orf_start,
+                    orf_end,
+                    nmd_distance,
+                    weak_nmd_distance,
+                    atg_distance,
+                    big_exon_dist_to_ej,
+                );
+
                 let line = format!(
-                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                     from_utf8(&gp.chrom).unwrap(),
                     orf_start,
                     orf_end,
@@ -1083,7 +1107,8 @@ pub fn get_table(
                     record.start_codon,
                     tai_prediction.stop_codon, // INFO: on purpose to avoid orfipy NA stop
                     tai_prediction.inner_stops,
-                    record.orf_type
+                    record.orf_type,
+                    nmd_type
                 );
                 table.entry(idx).or_insert(Vec::new()).push(line);
 
@@ -1097,9 +1122,19 @@ pub fn get_table(
                     continue;
                 };
 
+                let nmd_type = detect_nmd(
+                    gp,
+                    orf_start,
+                    orf_end,
+                    nmd_distance,
+                    weak_nmd_distance,
+                    atg_distance,
+                    big_exon_dist_to_ej,
+                );
+
                 // INFO: orfipy complete or complete-nested -> follow tai fmt + orf_type + strand
                 let line = format!(
-                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                     from_utf8(&gp.chrom).unwrap(),
                     orf_start,
                     orf_end,
@@ -1112,8 +1147,10 @@ pub fn get_table(
                     record.start_codon,
                     record.stop_codon,
                     1, // INFO: complete or complete-nested only have 1 stop codon, otherwise would not be complete
-                    record.orf_type
+                    record.orf_type,
+                    nmd_type
                 );
+
                 table.entry(idx).or_insert(Vec::new()).push(line);
             }
         }
@@ -1169,6 +1206,141 @@ pub fn get_table(
     }
 
     table
+}
+
+/// An enum representing the NMD type of an ORF
+pub enum NMDType {
+    NN, // INFO: no_nmd
+    WN, // INFO: weak_nmd
+    SN, // INFO: strong_nmd
+    UN, // INFO: unknown -> likely an error
+}
+
+impl std::fmt::Display for NMDType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NMDType::NN => write!(f, "NN"),
+            NMDType::WN => write!(f, "WN"),
+            NMDType::SN => write!(f, "SN"),
+            NMDType::UN => write!(f, "UN"),
+        }
+    }
+}
+
+/// Detects the NMD type of an ORF
+/// NMD types are:
+/// 1. NN -> no_nmd
+/// 2. WN -> weak_nmd
+/// 3. SN -> strong_nmd
+///
+/// # Arguments
+/// * `gp` - The genepred record
+/// * `orf_start` - The start of the ORF
+/// * `orf_end` - The end of the ORFs
+/// * `nmd_distance` - The minimum 3' UTR length for a strong NMD classification.
+/// * `weak_nmd_distance` - The maximum distance from the stop codon to the last exon-exon junction
+///   for a weak NMD classification.
+/// * `atg_distance` - The maximum CDS length for a weak NMD classification.
+/// * `big_exon_dist_to_ej` - The maximum distance from the stop codon to the next splice junction
+///   for a big exon test, used in weak NMD classification.
+///
+/// # Returns
+/// A `String` representing the NMD type
+///
+/// # Example
+/// ```rust, ignore
+/// let nmd_type = detect_nmd(gp, orf_start, orf_end);
+/// ```
+fn detect_nmd(
+    gp: &GenePred,
+    cds_start: u64,
+    cds_end: u64,
+    nmd_distance: u64,
+    weak_nmd_distance: i64,
+    atg_distance: u64,
+    big_exon_dist_to_ej: u64,
+) -> NMDType {
+    // INFO: noncoding transcripts + errors
+    if cds_start == cds_end {
+        return NMDType::UN;
+    }
+
+    let mut nmd_count: i64 = -1;
+    let mut _ex_ex_junction_utr: i64 = -1;
+    let mut dist_stop_to_next_sj = 0; // INFO: for big exon test
+    let mut in_utr = false;
+    let mut utr_len = 0;
+    let mut cds_len = 0;
+    let mut bp_utr_to_last_ex_ex_jct = 0;
+
+    let exons = gp.exons();
+
+    for (i, exon) in exons.iter().enumerate() {
+        let exon_start = exon.0;
+        let exon_end = exon.1;
+
+        // INFO: Count EEJs in 3'UTR
+        if exon_end >= cds_end {
+            _ex_ex_junction_utr += 1;
+
+            // INFO: first exon containing stop codon
+            if dist_stop_to_next_sj == 0 {
+                dist_stop_to_next_sj = exon_end - cds_end;
+            }
+
+            if !in_utr {
+                utr_len += exon_end - cds_end;
+                in_utr = true;
+            } else {
+                utr_len += exon_end - exon_start;
+            }
+
+            if utr_len >= nmd_distance {
+                nmd_count += 1;
+            }
+
+            // If last exon, compute bpUTRtoLastEEJ
+            if i == exons.len() - 1 {
+                bp_utr_to_last_ex_ex_jct = utr_len as i64 - (exon_end as i64 - exon_start as i64);
+            }
+        }
+
+        // INFO: CDS length accumulation
+        if exon_end < cds_start || exon_start > cds_end {
+            continue; // INFO: skip pure UTR exons
+        }
+
+        // INFO: first coding exon
+        if exon_end >= cds_start && cds_start >= exon_start {
+            if exon_end >= cds_end {
+                cds_len += cds_end - cds_start;
+            } else {
+                cds_len += exon_end - cds_start;
+            }
+        }
+        // INFO: internal coding exon
+        else if exon_start > cds_start && exon_end < cds_end {
+            cds_len += exon_end - exon_start;
+        }
+        // INFO: last coding exon
+        else if exon_start > cds_start && exon_end >= cds_end {
+            cds_len += cds_end - exon_start;
+        }
+    }
+
+    // INFO: final classification -> tag [NN: no_nmd, SN: strong_nmd, WN: weak_nmd]
+    if nmd_count == 0 || nmd_count == -1 {
+        NMDType::NN
+    } else {
+        if bp_utr_to_last_ex_ex_jct <= weak_nmd_distance
+            || dist_stop_to_next_sj >= big_exon_dist_to_ej
+            || cds_len <= atg_distance
+        {
+            NMDType::WN
+        } else {
+            NMDType::SN
+        }
+    }
 }
 
 /// Reads the translationAi output and converts it to a hashmap of `TaiRecord`s

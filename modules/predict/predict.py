@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 import argparse
 import logging
@@ -34,6 +34,7 @@ BLAST_COLS: List = [
     "stop_codon",
     "inner_stops",
     "orf_type",
+    "nmd_type",
     "blast_pid",
     "blast_evalue",
     "blast_offset",
@@ -77,6 +78,12 @@ ORF_TYPE_MAPPING: Dict = {
     "TP": 5,
     "TN": 6,
     "FN": 7,
+}
+NMD_TYPE_MAPPING: Dict = {
+    "NN": 1,
+    "WN": 2,
+    "SN": 3,
+    "UN": 4,
 }
 
 log = logging.getLogger(__name__)
@@ -499,6 +506,7 @@ def merge_tables(
     ] = np.nan
 
     merged["orf_type"] = merged["orf_type"].map(ORF_TYPE_MAPPING)
+    merged["nmd_type"] = merged["nmd_type"].map(NMD_TYPE_MAPPING)
 
     return merged
 
