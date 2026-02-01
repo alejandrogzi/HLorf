@@ -12,8 +12,10 @@ nextflow.enable.dsl=2
 
 include { CHUNKER }      from './modules/chunker/main.nf'
 include { CONCAT }       from './modules/concat/main.nf'
-include { PREDICT_ORFS } from './subworkflows/predict_orfs/main.nf'
 include { EMAIL }        from './modules/email/main.nf'
+
+include { PREDICT_ORFS } from './subworkflows/predict_orfs/main.nf'
+include { GET_CANDIDATES } from './subworkflows/candidates/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -47,9 +49,14 @@ workflow HLORF {
 
     ch_versions = ch_versions.mix(CHUNKER.out.versions)
 
-    PREDICT_ORFS(
+    GET_CANDIDATES(
         ch_pairs,
         ch_database
+    )
+  
+    PREDICT_ORFS(
+        GET_CANDIDATES.out.candidates,
+        GET_CANDIDATES.out.counts
     )
 
     PREDICT_ORFS.out.orfs
@@ -61,6 +68,7 @@ workflow HLORF {
         }
         .set { ch_all }
 
+    ch_versions = ch_versions.mix(GET_CANDIDATES.out.versions)
     ch_versions = ch_versions.mix(PREDICT_ORFS.out.versions)
 
     CONCAT(
