@@ -28,7 +28,8 @@ process CHUNKER {
     --sequence $sequence \\
     --chunks $chunk_size \\
     -u $upstream \\
-    -d $downstream
+    -d $downstream \\
+    --ignore-errors
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
