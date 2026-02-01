@@ -106,7 +106,6 @@ fn write_chunk(
     let mut f_writer =
         BufWriter::new(File::create(tmp.with_extension("fa")).unwrap_or_else(|e| panic!("{}", e)));
 
-    dbg!(chunk.len());
     chunk
         .into_iter()
         .filter_map(|result| match result {
@@ -170,6 +169,15 @@ fn write_chunk(
         });
 }
 
+#[derive(Debug)]
+#[allow(dead_code)]
+enum RangeError {
+    UpstreamUnderflow {
+        exon_start: usize,
+        upstream_flank: usize,
+    },
+}
+
 fn slice_range_for_exon(
     exon_idx: usize,
     exon_count: usize,
@@ -177,12 +185,17 @@ fn slice_range_for_exon(
     exon_end: usize,
     upstream_flank: usize,
     downstream_flank: usize,
-) -> std::ops::Range<usize> {
+) -> Result<std::ops::Range<usize>, RangeError> {
     let is_first = exon_idx == 0;
     let is_last = exon_idx + 1 == exon_count;
 
     let start = if is_first {
-        exon_start.saturating_sub(upstream_flank)
+        exon_start
+            .checked_sub(upstream_flank)
+            .ok_or(RangeError::UpstreamUnderflow {
+                exon_start,
+                upstream_flank,
+            })?
     } else {
         exon_start
     };
@@ -193,7 +206,7 @@ fn slice_range_for_exon(
         exon_end
     };
 
-    start..end
+    Ok(start..end)
 }
 
 fn extend_or_handle_oob(
@@ -245,14 +258,24 @@ fn extract_seq(
         let exon_start = *start as usize;
         let exon_end = *end as usize;
 
-        let range = slice_range_for_exon(
+        let range = match slice_range_for_exon(
             idx,
             exon_count,
             exon_start,
             exon_end,
             upstream_flank,
             downstream_flank,
-        );
+        ) {
+            Ok(r) => r,
+            Err(err) => {
+                if ignore_errors {
+                    eprintln!("WARN: {:?} for record {}", err, record);
+                    continue; // skip this exon
+                } else {
+                    panic!("ERROR: {:?} for record {}", err, record);
+                }
+            }
+        };
 
         extend_or_handle_oob(record, &mut target, seq, range, idx, ignore_errors);
     }
