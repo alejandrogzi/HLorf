@@ -123,7 +123,7 @@ fn write_chunk(
                 )
             });
 
-            let mut target = extract_seq(
+            let target = extract_seq(
                 &record,
                 &seq,
                 upstream_flank,
@@ -131,41 +131,43 @@ fn write_chunk(
                 ignore_errors,
             );
 
-            match &record.strand {
-                Some(Strand::Forward) => {}
-                Some(Strand::Reverse) => {
-                    target.reverse();
+            if let Some(mut target) = target {
+                match &record.strand {
+                    Some(Strand::Forward) => {}
+                    Some(Strand::Reverse) => {
+                        target.reverse();
 
-                    for base in target.iter_mut() {
-                        *base = match *base {
-                            b'A' => b'T',
-                            b'C' => b'G',
-                            b'G' => b'C',
-                            b'T' => b'A',
-                            b'N' => b'N',
-                            _ => panic!("ERROR: Invalid base"),
+                        for base in target.iter_mut() {
+                            *base = match *base {
+                                b'A' => b'T',
+                                b'C' => b'G',
+                                b'G' => b'C',
+                                b'T' => b'A',
+                                b'N' => b'N',
+                                _ => panic!("ERROR: Invalid base"),
+                            }
                         }
                     }
+                    Some(Strand::Unknown) | None => {}
                 }
-                Some(Strand::Unknown) | None => {}
+
+                Writer::<Bed12>::from_record(&record, &mut writer)
+                    .unwrap_or_else(|e| panic!("ERROR: Cannot write record to file: {}", e));
+
+                f_writer.write_all(b">").unwrap_or_else(|e| panic!("{}", e));
+                f_writer
+                    .write_all(record.name().unwrap())
+                    .unwrap_or_else(|e| panic!("{}", e));
+                f_writer
+                    .write_all(b"\n")
+                    .unwrap_or_else(|e| panic!("{}", e));
+                f_writer
+                    .write_all(&target)
+                    .unwrap_or_else(|e| panic!("{}", e));
+                f_writer
+                    .write_all(b"\n")
+                    .unwrap_or_else(|e| panic!("{}", e));
             }
-
-            Writer::<Bed12>::from_record(&record, &mut writer)
-                .unwrap_or_else(|e| panic!("ERROR: Cannot write record to file: {}", e));
-
-            f_writer.write_all(b">").unwrap_or_else(|e| panic!("{}", e));
-            f_writer
-                .write_all(record.name().unwrap())
-                .unwrap_or_else(|e| panic!("{}", e));
-            f_writer
-                .write_all(b"\n")
-                .unwrap_or_else(|e| panic!("{}", e));
-            f_writer
-                .write_all(&target)
-                .unwrap_or_else(|e| panic!("{}", e));
-            f_writer
-                .write_all(b"\n")
-                .unwrap_or_else(|e| panic!("{}", e));
         });
 }
 
@@ -216,25 +218,25 @@ fn extend_or_handle_oob(
     range: std::ops::Range<usize>,
     exon_idx: usize,
     ignore_errors: bool,
-) {
+) -> bool {
     if let Some(slice) = seq.get(range.clone()) {
         target.extend_from_slice(slice);
-        return;
+        return true;
     }
 
-    // Out of bounds
     if ignore_errors {
         eprintln!(
             "WARN: out-of-bounds slice for {} exon {}: {:?} (seq_len={})",
-            &record,
+            record,
             exon_idx,
             range,
             seq.len()
         );
+        false
     } else {
         panic!(
             "ERROR: out-of-bounds slice for {} exon {}: {:?} (seq_len={})",
-            &record,
+            record,
             exon_idx,
             range,
             seq.len()
@@ -248,10 +250,9 @@ fn extract_seq(
     upstream_flank: usize,
     downstream_flank: usize,
     ignore_errors: bool,
-) -> Vec<u8> {
+) -> Option<Vec<u8>> {
     let exons = record.exons();
     let exon_count = exons.len();
-
     let mut target = Vec::new();
 
     for (idx, (start, end)) in exons.iter().enumerate() {
@@ -270,17 +271,19 @@ fn extract_seq(
             Err(err) => {
                 if ignore_errors {
                     eprintln!("WARN: {:?} for record {}", err, record);
-                    continue; // skip this exon
+                    return None;
                 } else {
                     panic!("ERROR: {:?} for record {}", err, record);
                 }
             }
         };
 
-        extend_or_handle_oob(record, &mut target, seq, range, idx, ignore_errors);
+        if !extend_or_handle_oob(record, &mut target, seq, range, idx, ignore_errors) {
+            return None;
+        }
     }
 
-    target
+    Some(target)
 }
 
 #[derive(Clone, Copy)]
