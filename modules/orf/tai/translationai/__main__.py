@@ -115,11 +115,13 @@ def TIS_TTS_predictor(
     num_idx = len(h5f.keys()) // 2
     seqIn = open(input_fa_fn, "r").readlines()
     seqNum = len(seqIn) // 2
+
     if num_idx != seqNum:
         if verbose:
             print([num_idx, seqNum])
+
         raise Exception(
-            "!!!ERROR: The sequence numbers from the .h5 file and the .fa file do not match!"
+            f"ERROR: The sequence numbers from the .h5 file and the .fa file do not match! {num_idx} vs {seqNum}"
         )
 
     print("{:-^100}".format("Predicting TISs and TTSs (batched)"))
