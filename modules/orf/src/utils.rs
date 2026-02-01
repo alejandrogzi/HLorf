@@ -77,11 +77,13 @@ pub fn translate(sequence: &[u8]) -> String {
         let amino_acid = translate_codon(codon);
 
         if amino_acid == "X" {
-            panic!(
-                "ERROR: codon -> {:?} is not a valid codon from sequence -> {:?}!",
+            println!(
+                "WARN: codon -> {:?} is not a valid codon from sequence -> {:?}!",
                 from_utf8(codon).unwrap(),
                 from_utf8(sequence).unwrap()
             );
+
+            aa.push_str("X"); // WARN: accepting invalid codons!
         }
         aa.push_str(amino_acid);
     }
