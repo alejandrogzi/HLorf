@@ -632,7 +632,8 @@ impl OrfRecord {
                         line
                     );
                 })
-                .to_string(),
+                .to_string()
+                .to_uppercase(),
             parts
                 .next()
                 .unwrap_or_else(|| {
@@ -645,7 +646,8 @@ impl OrfRecord {
                         line
                     );
                 })
-                .to_string(),
+                .to_string()
+                .to_uppercase(),
         );
 
         let (start, end, strand) = split_coords(coords).unwrap_or_else(|| {
@@ -1517,13 +1519,15 @@ impl TaiRecord {
                 .unwrap_or_else(|| {
                     panic!("ERROR: failed to parse start codon from line: {}", line);
                 })
-                .to_string(),
+                .to_string()
+                .to_uppercase(),
             parts
                 .next()
                 .unwrap_or_else(|| {
                     panic!("ERROR: failed to parse stop codon from line: {}", line);
                 })
-                .to_string(),
+                .to_string()
+                .to_uppercase(),
             parts
                 .next()
                 .unwrap_or_else(|| {
