@@ -144,6 +144,11 @@ fn write_chunk(
                                 b'G' => b'C',
                                 b'T' => b'A',
                                 b'N' => b'N',
+                                b'a' => b't',
+                                b'c' => b'g',
+                                b'g' => b'c',
+                                b't' => b'a',
+                                b'n' => b'n',
                                 _ => panic!("ERROR: Invalid base"),
                             }
                         }
