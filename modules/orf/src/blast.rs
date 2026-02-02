@@ -1255,13 +1255,16 @@ impl std::fmt::Display for NMDType {
 /// ```
 fn detect_nmd(
     gp: &GenePred,
-    cds_start: u64,
-    cds_end: u64,
+    orf_start: u64,
+    orf_end: u64,
     nmd_distance: u64,
     weak_nmd_distance: i64,
     atg_distance: u64,
     big_exon_dist_to_ej: u64,
 ) -> NMDType {
+    let mut cds_start = orf_start;
+    let mut cds_end = orf_end;
+
     // INFO: noncoding transcripts + errors
     if cds_start == cds_end {
         return NMDType::UN;
@@ -1275,7 +1278,31 @@ fn detect_nmd(
     let mut cds_len = 0;
     let mut bp_utr_to_last_ex_ex_jct = 0;
 
-    let exons = gp.exons();
+    let mut exons = gp.exons();
+    exons = match gp.strand() {
+        Some(genepred::Strand::Forward) => exons,
+        Some(genepred::Strand::Reverse) => {
+            // INFO: we scale the coordinates and then sort them
+            // INFO: this is equivalent to reversing the exons and reversing the coordinates
+            let mut exons = exons
+                .iter()
+                .map(|(start, end)| (SCALE - end, SCALE - start))
+                .collect::<Vec<(u64, u64)>>();
+
+            exons.sort_by(|a, b| a.0.cmp(&b.0));
+
+            cds_end = SCALE - orf_start;
+            cds_start = SCALE - orf_end;
+
+            exons
+        }
+        None | Some(genepred::Strand::Unknown) => {
+            panic!(
+                "ERROR: failed to parse strand from genepred record -> {:?}",
+                gp
+            )
+        }
+    };
 
     for (i, exon) in exons.iter().enumerate() {
         let exon_start = exon.0;
