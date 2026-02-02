@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.7"
+__version__ = "0.0.8"
 
 import argparse
 import logging
@@ -503,7 +503,11 @@ def merge_tables(
         TAI_MASKING_NAN_COLS,
     ] = np.nan
 
-    mask = (merged["blast_evalue"] == 1) | (merged["neg_log10_blast_evalue"] < 0)
+    mask = (
+        (merged["blast_evalue"] == 1)
+        | (merged["neg_log10_blast_evalue"] < 0)
+        | pd.isna(merged["blast_percentage_aligned"])
+    )
     merged.loc[
         mask,
         BLAST_MASKING_NAN_COLS,
