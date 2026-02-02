@@ -20,7 +20,7 @@ process CONCAT {
     script:
     """
     cat bed_*/*.bed > all.bed
-    cat tsv_*/*.tsv > all.tsv    
+    awk 'NR==1 || FNR>1' tsv_*/*.tsv > all.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
