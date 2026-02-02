@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.5"
+__version__ = "0.0.6"
 
 import argparse
 import logging
@@ -385,7 +385,11 @@ def read_blast(path: Union[str, PathLike, Path]) -> pd.DataFrame:
 
     # INFO: needs to be the cannonical ID
     # R1_chr1__OR2#NE1 -> R1_chr1 [samba] + R1_chr1:1-10(+) [bed]
-    blast["prefix"] = blast["id"].str.split("_ORF").str[0]
+    if len(blast["id"].str.split("_ORF")) > 1:
+        blast["prefix"] = blast["id"].str.split("_ORF").str[0]
+    else:
+        blast["prefix"] = blast["id"].str.split(".p").str[0]
+
     blast["key"] = (
         blast["prefix"]
         + ":"
