@@ -1187,8 +1187,32 @@ pub fn get_table(
                 panic!("ERROR: failed to write record to file -> {e} -> {:?}", rc);
             });
 
+            let record_cannonical_id = prediction.id.split(".p").next().unwrap_or_else(|| {
+                panic!(
+                    "ERROR: failed to parse cannonical ID from header: {}",
+                    prediction.id
+                );
+            });
+
+            let gp = bed.get_mut(record_cannonical_id).unwrap_or_else(|| {
+                panic!(
+                    "ERROR: could not find gene prediction for ID: {}",
+                    record_cannonical_id
+                );
+            });
+
+            let nmd_type = detect_nmd(
+                gp,
+                prediction.start as u64,
+                prediction.end as u64,
+                nmd_distance,
+                weak_nmd_distance,
+                atg_distance,
+                big_exon_dist_to_ej,
+            );
+
             let line = format!(
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                 prediction.chr,
                 prediction.start,
                 prediction.end,
@@ -1202,6 +1226,7 @@ pub fn get_table(
                 prediction.stop_codon,
                 prediction.inner_stops,
                 "UN", // INFO: unknown orf_type -> can be guessed with codons but its helpful for tai-only
+                nmd_type,
             );
             table.entry(unique_tai_idx).or_insert(Vec::new()).push(line);
         }
