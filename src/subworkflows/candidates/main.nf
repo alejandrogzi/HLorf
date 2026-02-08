@@ -1,5 +1,7 @@
 include { TRANSLATION } from '../../modules/translation/main.nf'
 include { RNASAMBA }    from '../../modules/rnasamba/main.nf'
+include { NETSTART }    from '../../modules/netstart/main.nf'
+include { TRANSAID }    from '../../modules/transaid/main.nf'
 include { BLAST }       from '../../modules/blast/main.nf'
 
 workflow GET_CANDIDATES {
@@ -12,6 +14,8 @@ workflow GET_CANDIDATES {
 
     TRANSLATION(ch_pairs)
     RNASAMBA(ch_pairs)
+    NETSTART(RNASAMBA.out.fasta)
+    TRANSAID(RNASAMBA.out.fasta)
 
     BLAST(
         TRANSLATION.out.predictions,

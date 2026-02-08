@@ -1,16 +1,15 @@
-process RNASAMBA {
+process TRANSAID {
     tag "$meta.id"
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container 'alejandrogzi/orf-samba:latest'
+    container 'alejandrogzi/orf-net:latest'
 
     input:
     tuple val(meta), path(bed), path(sequence)
 
     output:
     tuple val(meta), path("${meta.id}/*tsv"), emit: samba
-    tuple val(meta), path(bed), path("${meta.id}/*strip.fa"), emit: fasta
     path "versions.yml", emit: versions
 
     when:
@@ -29,6 +28,7 @@ process RNASAMBA {
     $args
 
     mv ${meta.id}/samba/*tsv ${meta.id}/ && rm -rf ${meta.id}/samba
+    rm *strip.fa
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
