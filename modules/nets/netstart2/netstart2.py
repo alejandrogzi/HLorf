@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+
 import time
 import numpy as np
 import pandas as pd
@@ -12,7 +14,6 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import transformers
-import time
 import argparse
 import os
 import sys
@@ -644,9 +645,9 @@ def extract_datasets(
                     nucleotide_seq_len = int(
                         first_stop_codon_pos_1_indexed - position_1_indexed
                     )
-                    assert nucleotide_seq_len % 3 == 0, (
-                        "Start- and stop codon positions not extracted properly."
-                    )
+                    assert (
+                        nucleotide_seq_len % 3 == 0
+                    ), "Start- and stop codon positions not extracted properly."
                     aa_seq_len = nucleotide_seq_len // 3
                     stop_codon_found = True
 
@@ -770,9 +771,9 @@ def extract_datasets_complement_strand(
                     nucleotide_seq_len = abs(
                         int(first_stop_codon_pos_1_indexed - position_1_indexed)
                     )
-                    assert nucleotide_seq_len % 3 == 0, (
-                        "Start- and stop codon positions not extracted properly."
-                    )
+                    assert (
+                        nucleotide_seq_len % 3 == 0
+                    ), "Start- and stop codon positions not extracted properly."
                     aa_seq_len = nucleotide_seq_len // 3
                     stop_codon_found = True
 
@@ -1298,9 +1299,9 @@ def ExtractDataAndModel(
     state_dict_result = model.load_state_dict(model_state_dict, strict=False)
     if hasattr(state_dict_result, "missing_keys"):
         # Make sure that there are no 'missing_keys'
-        assert not state_dict_result.missing_keys, (
-            f"Missing keys in state dict: {state_dict_result.missing_keys}"
-        )
+        assert (
+            not state_dict_result.missing_keys
+        ), f"Missing keys in state dict: {state_dict_result.missing_keys}"
         # Log if there are any 'unexpected_keys' for clarity
         # if state_dict_result.unexpected_keys:
         #    print(f"Warning: Unexpected keys in state dict: {state_dict_result.unexpected_keys}")
