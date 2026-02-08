@@ -20,6 +20,7 @@
 # │   │   ├── Dockerfile.chunk
 # │   │   ├── Dockerfile.tai
 # │   │   ├── Dockerfile.samba
+# │   │   └── Dockerfile.net
 # │   │   └── Dockerfile.blast
 # │   └── predict/
 # │       └── Dockerfile.predict
@@ -46,6 +47,7 @@ else
     echo "  project_root/"
     echo "  ├── modules/"
     echo "  │   ├── orf/"
+    echo "  │   ├── nets/"
     echo "  │   └── predict/"
     echo "  └── containers/"
     echo "      ├── orf/"
@@ -126,10 +128,11 @@ build_container() {
 # Build ORF containers
 echo ""
 echo -e "${YELLOW}=== Building ORF Containers ===${NC}"
-build_container "orf" "chunk" "Dockerfile.chunk" || true
-build_container "orf" "tai" "Dockerfile.tai" || true
-build_container "orf" "samba" "Dockerfile.samba" || true
-build_container "orf" "blast" "Dockerfile.blast" || true
+build_container "orf" "chunk" "chunk.Dockerfile" || true
+build_container "orf" "tai" "tai.Dockerfile" || true
+build_container "orf" "samba" "samba.Dockerfile" || true
+build_container "orf" "blast" "blast.Dockerfile" || true
+build_container "orf" "net" "net.Dockerfile" || true
 
 # Build Predict containers
 echo ""
