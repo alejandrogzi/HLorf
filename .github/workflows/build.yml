@@ -22,19 +22,22 @@ jobs:
       matrix:
         image:
           - name: orf-blast
-            dockerfile: containers/orf/Dockerfile.blast
+            dockerfile: containers/orf/blast.Dockerfile
             context: .
           - name: orf-chunk
-            dockerfile: containers/orf/Dockerfile.chunk
+            dockerfile: containers/orf/chunk.Dockerfile
             context: .
           - name: orf-samba
-            dockerfile: containers/orf/Dockerfile.samba
+            dockerfile: containers/orf/samba.Dockerfile
             context: .
           - name: orf-tai
-            dockerfile: containers/orf/Dockerfile.tai
+            dockerfile: containers/orf/tai.Dockerfile
             context: .
           - name: orf-predict
-            dockerfile: containers/predict/Dockerfile.predict
+            dockerfile: containers/predict/predict.Dockerfile
+            context: .
+          - name: orf-net
+            dockerfile: containers/orf/net.Dockerfile
             context: .
 
     steps:
