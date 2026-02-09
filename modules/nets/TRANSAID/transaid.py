@@ -12,6 +12,9 @@ MODEL = "model/TRANSAID_Embedding_batch4_best_model.pth"
 MODEL_PATH = Path(__file__).resolve().parent / MODEL
 
 
+__version__ = "0.0.1-orf"
+
+
 def get_args():
     parser = argparse.ArgumentParser(
         description="Predict translation products from RNA sequences"
@@ -71,6 +74,12 @@ def get_args():
     )
     parser.add_argument(
         "--tts_cutoff", type=float, default=0.1, help="Minimum TTS prediction score"
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"Version: {__version__}",
     )
     return parser.parse_args()
 

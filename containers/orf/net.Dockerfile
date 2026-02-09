@@ -115,5 +115,9 @@ RUN transaid --input /data/test.fasta --gpu -1 --output /data/test_transaid_out
 RUN test -s /data/test_netstart2_out.csv
 RUN test -s /data/test_transaid_out.csv
 
+# Check versioning
+RUN netstart2 --version
+RUN transaid --version
+
 # Clean up test fasta file
 RUN rm -rf /data/test_transaid_out.csv /data/test_netstart2_out.csv

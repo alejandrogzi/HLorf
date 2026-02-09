@@ -35,6 +35,8 @@ HYPERPARAM_DIR = MODEL_CONFIG_DIR / "hyperparameters"
 PRETRAINED_DIR = MODEL_CONFIG_DIR / "pretrained_models" / "finetuned_models"
 MODELS_DIR = MODEL_CONFIG_DIR / "models"
 
+__version__ = "0.0.1-orf"
+
 # Define dictionary for species and phyla
 conversion_dict = {
     "a_mississippiensis": "Alligator mississippiensis",
@@ -1694,6 +1696,13 @@ def main():
         type=str,
         required=True,
         help="Input file name in FASTA format (can also be in gzipped format with .gz-extension).",
+    )
+
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"Version: {__version__}",
     )
 
     # Parse the arguments

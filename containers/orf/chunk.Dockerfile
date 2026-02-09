@@ -37,6 +37,3 @@ WORKDIR /data
 
 # Test that it works
 RUN orf chunk --help
-
-# ENTRYPOINT ["orf"]
-# CMD ["chunk", "--help"]
