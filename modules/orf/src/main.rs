@@ -26,6 +26,7 @@ fn main() {
         Commands::Tai(args) => run_tai(args),
         Commands::Samba(args) => run_samba(args),
         Commands::Chunk(args) => run_chunk(args),
+        Commands::Net(args) => run_nets(args),
     }
 
     let elapsed = start.elapsed();

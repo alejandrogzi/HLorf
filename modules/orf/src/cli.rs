@@ -44,6 +44,9 @@ pub enum Commands {
 
     /// Run RNAsamba on a set of reads
     Samba(SambaArgs),
+
+    /// Join nets (NetStart2 + Transaid)
+    Net(NetArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -314,4 +317,40 @@ pub struct SambaArgs {
         default_value = "0"
     )]
     pub downstream_flank: usize,
+}
+
+#[derive(Debug, Parser)]
+pub struct NetArgs {
+    #[arg(
+        short = 'b',
+        long = "bed",
+        required = true,
+        help = "Path to .bed file with candidate regions"
+    )]
+    pub bed: PathBuf,
+
+    #[arg(
+        short = 'n',
+        long = "netstart",
+        required = true,
+        help = "Path to netstart .csv file"
+    )]
+    pub netstart: PathBuf,
+
+    #[arg(
+        short = 't',
+        long = "transaid",
+        required = true,
+        help = "Path to transaid .csv file"
+    )]
+    pub transaid: PathBuf,
+
+    #[arg(
+        short = 'o',
+        long = "outdir",
+        required = false,
+        help = "Path to outdir",
+        default_value = "."
+    )]
+    pub outdir: PathBuf,
 }
