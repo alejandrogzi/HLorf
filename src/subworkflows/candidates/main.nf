@@ -3,6 +3,7 @@ include { RNASAMBA }    from '../../modules/rnasamba/main.nf'
 include { NETSTART }    from '../../modules/netstart/main.nf'
 include { TRANSAID }    from '../../modules/transaid/main.nf'
 include { BLAST }       from '../../modules/blast/main.nf'
+include { JOIN as JOIN_NETS }   from '../../modules/join/main.nf'
 
 workflow GET_CANDIDATES {
     take:
@@ -14,8 +15,14 @@ workflow GET_CANDIDATES {
 
     TRANSLATION(ch_pairs)
     RNASAMBA(ch_pairs)
+
     NETSTART(RNASAMBA.out.fasta)
     TRANSAID(RNASAMBA.out.fasta)
+
+    JOIN_NETS(
+        NETSTART.out.netstart,
+        TRANSIAD.out.transaid
+    )
 
     BLAST(
         TRANSLATION.out.predictions,
@@ -23,6 +30,7 @@ workflow GET_CANDIDATES {
     )
     .blast
     .join(RNASAMBA.out.samba)
+    .join(JOIN_NETS.out.nets)
     .set { ch_candidates }
 
     ch_versions = ch_versions.mix(TRANSLATION.out.versions)

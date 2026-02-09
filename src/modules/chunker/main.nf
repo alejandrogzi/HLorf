@@ -39,7 +39,7 @@ process CHUNKER {
 
     stub:
     """
-    touch tmptai --fasta tmp_0.fa --bed tmp_0.bed --outdir tmp_0
+    touch tmp
     touch tmp/*bed
     touch tmp/*fa
 
