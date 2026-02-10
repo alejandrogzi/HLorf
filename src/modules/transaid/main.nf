@@ -10,6 +10,7 @@ process TRANSAID {
 
     output:
     tuple val(meta), path("${meta.id}*csv"), emit: transaid
+    tuple val(meta), env(PREDICTION_COUNT), emit: count
     path "versions.yml", emit: versions
 
     when:
@@ -23,6 +24,8 @@ process TRANSAID {
     --gpu -1 \\
     --output ${meta.id} \\
     $args
+
+    PREDICTION_COUNT=\$(wc -l < ${meta.id}*csv)
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

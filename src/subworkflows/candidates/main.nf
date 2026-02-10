@@ -26,12 +26,18 @@ workflow GET_CANDIDATES {
 
     BLAST(
         TRANSLATION.out.predictions,
+        JOIN_NETS.out.net,
         ch_database
     )
     .blast
     .join(RNASAMBA.out.samba)
-    .join(JOIN_NETS.out.net)
     .set { ch_candidates }
+
+    BLAST.out.counts
+    .join(NETSTART.out.count)
+    .join(TRANSAID.out.count)
+    .join(JOIN_NETS.out.count)
+    .set { ch_counts }
 
     ch_versions = ch_versions.mix(TRANSLATION.out.versions)
     ch_versions = ch_versions.mix(RNASAMBA.out.versions)
@@ -39,6 +45,6 @@ workflow GET_CANDIDATES {
 
     emit:
     candidates = ch_candidates
-    counts = BLAST.out.counts
+    counts = ch_counts
     versions = ch_versions
 }

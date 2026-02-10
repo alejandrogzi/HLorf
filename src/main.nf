@@ -53,7 +53,7 @@ workflow HLORF {
         ch_pairs,
         ch_database
     )
-  
+
     PREDICT_ORFS(
         GET_CANDIDATES.out.candidates,
         GET_CANDIDATES.out.counts
@@ -76,13 +76,13 @@ workflow HLORF {
     )
 
     PREDICT_ORFS.out.counts
-    .map { meta, initial, tai, blast, samba, all, unique, kept -> 
-        def line = "${meta.id}\t${initial}\t${tai}\t${blast}\t${samba}\t${all}\t${unique}\t${kept}"
+    .map { meta, initial, netstart, transaid, ns_td, tai, blast, samba, all, unique, kept ->
+        def line = "${meta.id}\t${initial}\t${netstart}\t${transaid}\t${ns_td}\t${tai}\t${blast}\t${samba}\t${all}\t${unique}\t${kept}"
         return line
     }
     .collectFile(
-      name: 'counts.tsv', 
-      newLine: true, 
+      name: 'counts.tsv',
+      newLine: true,
       storeDir: "${params.outdir}/samplesheets"
     )
     .set { ch_counts }

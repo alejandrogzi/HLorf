@@ -11,6 +11,7 @@ process JOIN {
 
     output:
     tuple val(meta), path('net/merged.net'), emit: net
+    tuple val(meta), env(PREDICTION_COUNT), emit: count
     path "versions.yml", emit: versions
 
     when:
@@ -23,6 +24,8 @@ process JOIN {
     --netstart $netstart \\
     --transaid $transaid \\
     --outdir .
+
+    PREDICTION_COUNT=\$(cat net/merged.net | wc -l)
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

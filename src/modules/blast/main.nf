@@ -7,6 +7,7 @@ process BLAST {
 
     input:
     tuple val(meta), path(bed), path(sequence), path(predictions)
+    tuple val(meta), path(net)
     each path(database)
 
     output:
@@ -28,6 +29,7 @@ process BLAST {
     --fasta $sequence \\
     --bed $bed \\
     --tai $predictions \\
+    --net $net \\
     --outdir ${meta.id} \\
     --orf-min-len $orf_min_len \\
     --orf-min-percent $orf_min_percent \\
@@ -37,7 +39,7 @@ process BLAST {
     $args
 
     mv ${meta.id}/orf/*result ${meta.id}/ && rm -rf ${meta.id}/orf
-    
+
     INITIAL_REGION_COUNT=\$(wc -l < ${bed})
     TRANSLATION_COUNT=\$(wc -l < ${predictions})
 
