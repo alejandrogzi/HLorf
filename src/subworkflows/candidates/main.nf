@@ -30,7 +30,7 @@ workflow GET_CANDIDATES {
     )
     .blast
     .join(RNASAMBA.out.samba)
-    .join(JOIN_NETS.out.nets)
+    .join(JOIN_NETS.out.net)
     .set { ch_candidates }
 
     ch_versions = ch_versions.mix(TRANSLATION.out.versions)
