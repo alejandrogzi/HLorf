@@ -106,7 +106,7 @@ fn __join_nets(
                     };
 
                     let line = format!(
-                        "{}\t{}\t\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                         id,
                         orf_start,
                         orf_end,
