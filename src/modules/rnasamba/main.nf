@@ -10,7 +10,7 @@ process RNASAMBA {
 
     output:
     tuple val(meta), path("${meta.id}/*tsv"), emit: samba
-    tuple val(meta), path(bed), path("${meta.id}/*strip.fa"), emit: fasta
+    tuple val(meta), path(bed), path("${meta.id}*strip.fa"), emit: fasta
     path "versions.yml", emit: versions
 
     when:
