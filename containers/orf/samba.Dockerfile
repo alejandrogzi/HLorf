@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile.samba - Container for 'orf samba' subcommand
+# samba.Dockerfile - Container for 'orf samba' subcommand
 # ==============================================================================
 # Includes: orf binary + rnasamba (Python 3.6, TensorFlow 1.14)
 # Result: ~1.2GB container

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile.chunk - Minimal container for 'orf chunk' subcommand
+# chunk.Dockerfile - Minimal container for 'orf chunk' subcommand
 # ==============================================================================
 # This is a standalone Rust binary with no external dependencies.
 # Result: ~20-30MB container

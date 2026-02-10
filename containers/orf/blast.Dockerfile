@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile.blast - Container for 'orf blast' subcommand
+# blast.Dockerfile - Container for 'orf blast' subcommand
 # ==============================================================================
 # Includes: orf binary + diamond + orfipy (Python 3.9)
 # Result: ~500MB container

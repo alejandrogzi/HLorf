@@ -2,7 +2,7 @@
 # ==============================================================================
 # build_containers.sh - Build all pipeline containers
 # ==============================================================================
-# 
+#
 # USAGE:
 #   Place this script in: <project_root>/containers/
 #   Run from project root: ./containers/build_containers.sh
@@ -98,19 +98,19 @@ build_container() {
     local dockerfile=$3
     local image="${REGISTRY}/orf-${name}:${TAG}"
     local dockerfile_path="${PROJECT_ROOT}/containers/${category}/${dockerfile}"
-    
+
     echo ""
     echo -e "${BLUE}[BUILD]${NC} Building ${category}-${name}..."
     echo "  Dockerfile: containers/${category}/${dockerfile}"
     echo "  Context:    ${PROJECT_ROOT}"
     echo "  Image:      ${image}"
-    
+
     if [[ ! -f "${dockerfile_path}" ]]; then
         echo -e "${RED}[ERROR]${NC} Dockerfile not found: ${dockerfile_path}"
         FAILED_BUILDS+=("${category}-${name}")
         return 1
     fi
-    
+
     if docker build \
         -f "${dockerfile_path}" \
         -t "${image}" \
@@ -175,4 +175,3 @@ echo "Next steps:"
 echo "  1. Test containers: ./containers/test_containers.sh"
 echo "  2. Push to registry: docker push ${REGISTRY}/orf-chunk:${TAG}"
 echo "  3. Run pipeline: nextflow run src/main.nf"
-

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile.net - Container for 'orf nets' subcommand
+# net.Dockerfile - Container for 'orf nets' subcommand
 # ==============================================================================
 
 # ---------- Build Stage ----------

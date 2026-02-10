@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile.tai - Container for 'orf tai' subcommand
+# tai.Dockerfile - Container for 'orf tai' subcommand
 # ==============================================================================
 # Includes: orf binary + translationai (Python 3.9, TensorFlow 2.10, models)
 # Result: ~1.5GB container
