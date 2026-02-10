@@ -283,8 +283,8 @@ impl NetNS {
             )));
         }
 
-        // INFO: test if line has no stop codon prediction -> invalid for out purposes
-
+        // WARN: Note that we are doing -1 to the start and +2 to the stop to match orfipy
+        // on the blast side
         let (_, orf_relative_start, orf_relative_stop, peptide_len, sequence_id, strand, score) = (
             parts.next(),
             parts
@@ -298,7 +298,8 @@ impl NetNS {
                         "ERROR: failed to parse ORF start from line: {} -> {e}",
                         line
                     );
-                }),
+                })
+                - 1,
             parts
                 .next()
                 .unwrap_or_else(|| {
@@ -307,7 +308,8 @@ impl NetNS {
                 .parse::<usize>()
                 .unwrap_or_else(|e| {
                     panic!("ERROR: failed to parse ORF end from line: {} -> {e}", line);
-                }),
+                })
+                + 2,
             parts
                 .next()
                 .unwrap_or_else(|| {
@@ -418,8 +420,7 @@ impl NetTD {
                         "ERROR: failed to parse ORF start from line: {} -> {e}",
                         line
                     );
-                })
-                + 1,
+                }),
             parts
                 .next()
                 .unwrap_or_else(|| {
@@ -429,7 +430,7 @@ impl NetTD {
                 .unwrap_or_else(|e| {
                     panic!("ERROR: failed to parse ORF stop from line: {} -> {e}", line);
                 })
-                + 1,
+                + 3,
             parts
                 .next()
                 .unwrap_or_else(|| {
