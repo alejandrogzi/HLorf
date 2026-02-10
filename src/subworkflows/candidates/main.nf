@@ -21,7 +21,7 @@ workflow GET_CANDIDATES {
 
     JOIN_NETS(
         NETSTART.out.netstart,
-        TRANSIAD.out.transaid
+        TRANSAID.out.transaid
     )
 
     BLAST(
