@@ -12,7 +12,8 @@
 //! heavily parallelized to offer fast performance on large datasets.
 
 use genepred::GenePred;
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::{HashMap, hash_map::Entry};
+use log::{debug, info, warn};
 use memchr::memchr;
 use memmap2::Mmap;
 
@@ -20,7 +21,7 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::str::{from_utf8, FromStr};
+use std::str::{FromStr, from_utf8};
 use std::sync::Arc;
 
 use crate::{cli::BlastArgs, consts::*, utils::*};
@@ -72,6 +73,7 @@ pub fn run_blast(args: BlastArgs) {
         bed,
         &dir,
         args.tai,
+        args.net,
         args.nmd_distance,
         args.weak_nmd_distance,
         args.atg_distance,
@@ -979,11 +981,13 @@ pub fn __split_record(
 /// ```rust
 /// let table = get_table(mapper, bed, outdir, tai).unwrap();
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub fn get_table(
     mut mapper: HashMap<HashHead, Vec<OrfRecord>>,
     mut bed: HashMap<String, GenePred>,
     outdir: &Path,
     tai: Option<PathBuf>,
+    net: Option<PathBuf>,
     nmd_distance: u64,
     weak_nmd_distance: i64,
     atg_distance: u64,
@@ -994,8 +998,19 @@ pub fn get_table(
 
     // INFO: read tai values if provided
     let mut tai = if let Some(tai) = tai {
+        info!("INFO: reading tai file: {tai:?}");
         read_tai_table(tai)
     } else {
+        warn!("WARN: no tai file provided");
+        HashMap::new()
+    };
+
+    // INFO: read tai values if provided
+    let mut nets = if let Some(net) = net {
+        info!("INFO: reading net file: {net:?}");
+        read_nets(net)
+    } else {
+        warn!("WARN: no net file provided");
         HashMap::new()
     };
 
@@ -1066,7 +1081,7 @@ pub fn get_table(
                     big_exon_dist_to_ej,
                 );
 
-                let line = format!(
+                let mut line = format!(
                     "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                     from_utf8(&gp.chrom).unwrap(),
                     orf_start,
@@ -1083,10 +1098,30 @@ pub fn get_table(
                     record.orf_type,
                     nmd_type
                 );
+
+                if nets.contains_key(&record_key) {
+                    debug!("DEBUG: net record for key: {record_key}");
+                    let additional = format!(
+                        "\t{}\t{}\t{}\t{}",
+                        nets[&record_key].netstart_atg_score,
+                        nets[&record_key].transaid_start_score,
+                        nets[&record_key].transaid_stop_score,
+                        nets[&record_key].transaid_integrated_score,
+                    );
+
+                    line.push_str(&additional);
+                    debug!("DEBUG: line for {record_key} -> {line}");
+                } else {
+                    warn!("WARN: no net record for key: {record_key}");
+                    line.push_str("\t-1\t-1\t-1\t-1");
+                }
+
                 table.entry(idx).or_insert(Vec::new()).push(line);
 
                 // INFO: remove from tai -> tai retains tai-only
+                // INFO: remove from net -> net retains net-only
                 tai.remove(&record_key);
+                nets.remove(&record_key);
             } else {
                 // INFO: ORF not predicted by translationAi -> only skipped if it is not complete
                 if record.orf_type != OrfType::Complete
@@ -1106,7 +1141,7 @@ pub fn get_table(
                 );
 
                 // INFO: orfipy complete or complete-nested -> follow tai fmt + orf_type + strand
-                let line = format!(
+                let mut line = format!(
                     "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                     from_utf8(&gp.chrom).unwrap(),
                     orf_start,
@@ -1124,7 +1159,23 @@ pub fn get_table(
                     nmd_type
                 );
 
+                if nets.contains_key(&record_key) {
+                    debug!("DEBUG: net record for key: {record_key}");
+                    let additional = format!(
+                        "\t{}\t{}\t{}\t{}",
+                        nets[&record_key].netstart_atg_score,
+                        nets[&record_key].transaid_start_score,
+                        nets[&record_key].transaid_stop_score,
+                        nets[&record_key].transaid_integrated_score,
+                    );
+                    line.push_str(&additional);
+                } else {
+                    warn!("WARN: no net record for key: {record_key}");
+                    line.push_str("\t-1\t-1\t-1\t-1");
+                }
+
                 table.entry(idx).or_insert(Vec::new()).push(line);
+                nets.remove(&record_key);
             }
         }
 
@@ -1171,6 +1222,10 @@ pub fn get_table(
                     record_cannonical_id
                 );
             });
+            let record_key = format!(
+                "{}:{}-{}",
+                record_cannonical_id, prediction.start, prediction.end
+            );
 
             let nmd_type = detect_nmd(
                 gp,
@@ -1182,7 +1237,7 @@ pub fn get_table(
                 big_exon_dist_to_ej,
             );
 
-            let line = format!(
+            let mut line = format!(
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                 prediction.chr,
                 prediction.start,
@@ -1199,8 +1254,34 @@ pub fn get_table(
                 "UN", // INFO: unknown orf_type -> can be guessed with codons but its helpful for tai-only
                 nmd_type,
             );
+
+            if nets.contains_key(&record_key) {
+                debug!("DEBUG: net record for key in a tai-only table: {record_key}");
+                let additional = format!(
+                    "\t{}\t{}\t{}\t{}",
+                    nets[&record_key].netstart_atg_score,
+                    nets[&record_key].transaid_start_score,
+                    nets[&record_key].transaid_stop_score,
+                    nets[&record_key].transaid_integrated_score,
+                );
+
+                line.push_str(&additional);
+            } else {
+                warn!("WARN: no net record for key in a tai-only table: {record_key}");
+                line.push_str("\t-1\t-1\t-1\t-1");
+            }
+
             table.entry(unique_tai_idx).or_insert(Vec::new()).push(line);
+            nets.remove(&record_key);
         }
+    }
+
+    if !nets.is_empty() {
+        info!(
+            "INFO: there are {} net records remaining in nets",
+            nets.len()
+        );
+        warn!("WARN: net records remaining in nets: {nets:?}")
     }
 
     table
@@ -1356,15 +1437,13 @@ fn detect_nmd(
     // INFO: final classification -> tag [NN: no_nmd, SN: strong_nmd, WN: weak_nmd]
     if nmd_count == 0 || nmd_count == -1 {
         NMDType::NN
+    } else if bp_utr_to_last_ex_ex_jct <= weak_nmd_distance
+        || dist_stop_to_next_sj >= big_exon_dist_to_ej
+        || cds_len <= atg_distance
+    {
+        NMDType::WN
     } else {
-        if bp_utr_to_last_ex_ex_jct <= weak_nmd_distance
-            || dist_stop_to_next_sj >= big_exon_dist_to_ej
-            || cds_len <= atg_distance
-        {
-            NMDType::WN
-        } else {
-            NMDType::SN
-        }
+        NMDType::SN
     }
 }
 
@@ -1587,4 +1666,229 @@ impl TaiRecord {
             aa,
         }
     }
+}
+
+/// Net representation of netstart and transaid
+#[derive(Debug, Clone)]
+#[allow(unused)]
+struct NetRecord {
+    sequence_id: String,
+    orf_absolute_start: usize,
+    orf_absolute_end: usize,
+    orf_relative_start: usize,
+    orf_relative_end: usize,
+    strand: genepred::Strand,
+    netstart_atg_score: f32,
+    transaid_start_score: f32,
+    transaid_stop_score: f32,
+    transaid_integrated_score: f32,
+}
+
+impl NetRecord {
+    /// Parse netstart line
+    fn parse(line: &str) -> Self {
+        let mut parts = line.split('\t');
+
+        let (
+            sequence_id,
+            orf_absolute_start,
+            orf_absolute_end,
+            orf_relative_start,
+            orf_relative_end,
+            strand,
+            netstart_atg_score,
+            transaid_start_score,
+            transaid_stop_score,
+            transaid_integrated_score,
+        ) = (
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!("ERROR: failed to parse sequence_id from line: {}", line);
+                })
+                .to_string(),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERROR: failed to parse orf_absolute_start from line: {}",
+                        line
+                    );
+                })
+                .parse::<usize>()
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "ERROR: failed to parse orf_absolute_start from line: {} -> {e}",
+                        line
+                    );
+                }),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERROR: failed to parse orf_absolute_end from line: {}",
+                        line
+                    );
+                })
+                .parse::<usize>()
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "ERROR: failed to parse orf_absolute_end from line: {} -> {e}",
+                        line
+                    );
+                }),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERROR: failed to parse orf_relative_start from line: {}",
+                        line
+                    );
+                })
+                .parse::<usize>()
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "ERROR: failed to parse orf_relative_start from line: {} -> {e}",
+                        line
+                    );
+                }),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERROR: failed to parse orf_relative_end from line: {}",
+                        line
+                    );
+                })
+                .parse::<usize>()
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "ERROR: failed to parse orf_relative_end from line: {} -> {e}",
+                        line
+                    );
+                }),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!("ERROR: failed to parse strand from line: {}", line);
+                })
+                .chars()
+                .next()
+                .unwrap_or_else(|| {
+                    panic!("ERROR: failed to parse strand from line: {}", line);
+                }),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERROR: failed to parse netstart atg score from line: {}",
+                        line
+                    );
+                })
+                .parse::<f32>()
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "ERROR: failed to parse netstart atg score from line: {} -> {e}",
+                        line
+                    );
+                }),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERROR: failed to parse transaid start score from line: {}",
+                        line
+                    );
+                })
+                .parse::<f32>()
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "ERROR: failed to parse transaid start score from line: {} -> {e}",
+                        line
+                    );
+                }),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERROR: failed to parse transaid stop score from line: {}",
+                        line
+                    );
+                })
+                .parse::<f32>()
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "ERROR: failed to parse transaid stop score from line: {} -> {e}",
+                        line
+                    );
+                }),
+            parts
+                .next()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERROR: failed to parse transaid integrated score from line: {}",
+                        line
+                    );
+                })
+                .parse::<f32>()
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "ERROR: failed to parse transaid integrated score from line: {} -> {e}",
+                        line
+                    );
+                }),
+        );
+
+        let strand = match strand {
+            '+' => genepred::Strand::Forward,
+            '-' => genepred::Strand::Reverse,
+            _ => panic!("ERROR: failed to parse strand from line: {}", line),
+        };
+
+        Self {
+            sequence_id,
+            orf_absolute_start,
+            orf_absolute_end,
+            orf_relative_start,
+            orf_relative_end,
+            strand,
+            netstart_atg_score,
+            transaid_start_score,
+            transaid_stop_score,
+            transaid_integrated_score,
+        }
+    }
+}
+
+/// Reads the net output and converts it to a hashmap of `NetRecord`s
+///
+/// # Arguments
+///
+/// * `path` - The path to the net output
+///
+/// # Returns
+///
+/// A `HashMap` of `String` and their corresponding `NetRecord`
+///
+/// # Example
+///
+/// ```rust
+/// let nets = read_nets(net).unwrap();
+/// ```
+fn read_nets<P: AsRef<Path> + std::fmt::Debug>(path: P) -> HashMap<String, NetRecord> {
+    let contents =
+        reader(&path).unwrap_or_else(|e| panic!("ERROR: failed to read net file {path:?} -> {e}"));
+    let mut accumulator = HashMap::new();
+
+    contents.lines().for_each(|line| {
+        let record = NetRecord::parse(line);
+        let key = format!(
+            "{}:{}-{}",
+            record.sequence_id, record.orf_absolute_start, record.orf_absolute_end
+        );
+
+        accumulator.entry(key).or_insert(record);
+    });
+
+    accumulator
 }

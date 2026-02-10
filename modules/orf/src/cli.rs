@@ -93,6 +93,14 @@ pub struct BlastArgs {
     pub tai: Option<PathBuf>,
 
     #[arg(
+        short = 'N',
+        long = "net",
+        required = false,
+        help = "Path to net output file"
+    )]
+    pub net: Option<PathBuf>,
+
+    #[arg(
         short = 'l',
         long = "orf-min-len",
         required = false,

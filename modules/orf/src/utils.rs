@@ -83,7 +83,7 @@ pub fn translate(sequence: &[u8]) -> String {
                 from_utf8(sequence).unwrap()
             );
 
-            aa.push_str("X"); // WARN: accepting invalid codons!
+            aa.push('X'); // WARN: accepting invalid codons!
         }
         aa.push_str(amino_acid);
     }

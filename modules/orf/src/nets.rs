@@ -20,6 +20,36 @@ use std::path::Path;
 
 use crate::{cli::NetArgs, utils::*};
 
+/// Run nets
+///
+/// # Arguments
+///
+///
+/// * `args` - CLI arguments
+///
+/// # Returns
+///
+/// * `()` - Writes net files to disk
+///
+/// # Panics
+///
+/// * If the directory for the net files cannot be created
+///
+/// # Examples
+///
+/// ```rust, ignore
+/// use orf::cli::NetArgs;
+/// use orf::nets::run_nets;
+///
+/// let args = NetArgs {
+///     bed: String::from("tests/data/test.bed"),
+///     netstart: String::from("tests/data/test.netstart"),
+///     transaid: String::from("tests/data/test.transaid"),
+///     outdir: String::from("tests/data/test.outdir"),
+/// };
+///
+/// run_nets(args);
+/// ```
 pub fn run_nets(args: NetArgs) {
     let dir = args.outdir.join("net");
     std::fs::create_dir_all(&dir)
@@ -76,10 +106,12 @@ fn __join_nets(
                     };
 
                     let line = format!(
-                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        "{}\t{}\t\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                         id,
                         orf_start,
                         orf_end,
+                        prediction.orf_relative_start,
+                        prediction.orf_relative_stop,
                         record
                             .strand()
                             .unwrap_or_else(|| panic!("ERROR: strand not found for {id:?}!")),
@@ -92,13 +124,18 @@ fn __join_nets(
                     writer.write_all(line.as_bytes()).unwrap_or_else(|e| {
                         panic!("ERROR: failed to write record to file -> {e} -> {:?}", line);
                     });
+                    writer.write_all(b"\n").unwrap_or_else(|e| {
+                        panic!("ERROR: failed to write record to file -> {e} -> {:?}", line);
+                    });
                 }
             } else {
                 let line = format!(
-                    "{}\t{}\t{}\t{}\t{}\t-1\t-1\t-1",
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t-1\t-1\t-1",
                     id,
                     orf_start,
                     orf_end,
+                    prediction.orf_relative_start,
+                    prediction.orf_relative_stop,
                     record
                         .strand()
                         .unwrap_or_else(|| panic!("ERROR: strand not found for {id:?}!")),
@@ -108,11 +145,51 @@ fn __join_nets(
                 writer.write_all(line.as_bytes()).unwrap_or_else(|e| {
                     panic!("ERROR: failed to write record to file -> {e} -> {:?}", line);
                 });
+                writer.write_all(b"\n").unwrap_or_else(|e| {
+                    panic!("ERROR: failed to write record to file -> {e} -> {:?}", line);
+                });
             }
         }
     });
 }
 
+/// Map netstart or transaid file to a hashmap
+/// with sequence_id as key and a vector of NetRecord
+/// as value
+///
+/// # Arguments
+///
+///
+///* `path` - Path to netstart or transaid file
+///* `source` - NetSource enum
+///
+/// # Returns
+///
+/// * `HashMap<String, Vec<NetRecord>>` - Hashmap with sequence_id as key and a vector of NetRecord as value
+///
+/// # Panics
+///
+/// * If the netstart or transaid file cannot be read
+/// * If the netstart or transaid file is invalid
+///
+/// # Examples
+///
+/// ```rust, ignore
+/// use orf::cli::NetArgs;
+/// use orf::nets::{run_nets, net_map};
+///
+/// let args = NetArgs {
+///     bed: String::from("tests/data/test.bed"),
+///     netstart: String::from("tests/data/test.netstart"),
+///     transaid: String::from("tests/data/test.transaid"),
+///     outdir: String::from("tests/data/test.outdir"),
+/// };
+///
+/// run_nets(args);
+///
+/// let netstart = net_map(args.netstart, NetSource::Netstart);
+/// let transaid = net_map(args.transaid, NetSource::Transaid);
+/// ```
 fn net_map<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
     source: NetSource,
@@ -131,10 +208,18 @@ fn net_map<P: AsRef<Path> + std::fmt::Debug>(
             // INFO: since the input is hyper chunked, performance is not affected
             // INFO: key is sequence_id, value is a vector of NetNS records
             let record = NetNS::parse(line);
-            accumulator
-                .entry(record.sequence_id.clone())
-                .or_insert_with(Vec::new)
-                .push(NetRecord::NetNS(record));
+
+            if let Ok(record) = record {
+                accumulator
+                    .entry(record.sequence_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(NetRecord::NetNS(record));
+            } else {
+                eprintln!(
+                    "WARN: failed to parse netstart record, skipping -> {:?}",
+                    line
+                );
+            }
         }),
         NetSource::Transaid => contents.lines().for_each(|line| {
             // WARN: this should change to a static pattern with
@@ -162,12 +247,14 @@ fn net_map<P: AsRef<Path> + std::fmt::Debug>(
     accumulator
 }
 
-pub enum NetSource {
+/// NetSource enum
+enum NetSource {
     Netstart,
     Transaid,
 }
 
-pub enum NetRecord {
+/// NetRecord enum
+enum NetRecord {
     NetNS(NetNS),
     NetTD(NetTD),
 }
@@ -184,8 +271,19 @@ pub struct NetNS {
 }
 
 impl NetNS {
-    pub fn parse(line: &str) -> Self {
+    /// Parse netstart line
+    pub fn parse(line: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let mut parts = line.split(',');
+
+        // INFO: check if line has 7 parts dropping empty ones
+        if parts.clone().filter(|x| !x.is_empty()).count() != 7 {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("ERROR: invalid netstart line -> {:?}", line),
+            )));
+        }
+
+        // INFO: test if line has no stop codon prediction -> invalid for out purposes
 
         let (_, orf_relative_start, orf_relative_stop, peptide_len, sequence_id, strand, score) = (
             parts.next(),
@@ -208,7 +306,7 @@ impl NetNS {
                 })
                 .parse::<usize>()
                 .unwrap_or_else(|e| {
-                    panic!("ERROR: failed to parse tai end from line: {} -> {e}", line);
+                    panic!("ERROR: failed to parse ORF end from line: {} -> {e}", line);
                 }),
             parts
                 .next()
@@ -231,20 +329,20 @@ impl NetNS {
             parts
                 .next()
                 .unwrap_or_else(|| {
-                    panic!("ERROR: failed to parse tai strand from line: {}", line);
+                    panic!("ERROR: failed to parse strand from line: {}", line);
                 })
                 .chars()
                 .next()
-                .unwrap_or_else(|| panic!("ERROR: failed to parse tai strand from line: {}", line)),
+                .unwrap_or_else(|| panic!("ERROR: failed to parse strand from line: {}", line)),
             parts
                 .next()
                 .unwrap_or_else(|| {
-                    panic!("ERROR: failed to parse tai stop score from line: {}", line);
+                    panic!("ERROR: failed to parse netstart score from line: {}", line);
                 })
                 .parse::<f32>()
                 .unwrap_or_else(|e| {
                     panic!(
-                        "ERROR: failed to parse tai stop score from line: {} -> {e}",
+                        "ERROR: failed to parse tai netstart score from line: {} -> {e}",
                         line
                     );
                 }),
@@ -256,14 +354,14 @@ impl NetNS {
             _ => panic!("ERROR: failed to parse strand from line: {}", line),
         };
 
-        Self {
+        Ok(Self {
             orf_relative_start,
             orf_relative_stop,
             peptide_len,
             sequence_id,
             strand,
             score,
-        }
+        })
     }
 }
 
@@ -285,11 +383,11 @@ pub struct NetTD {
 }
 
 impl NetTD {
+    /// Parse transaid line
     pub fn parse(line: &str) -> Self {
         let mut parts = line.split(',');
 
         let (
-            _,
             sequence_id,
             orf_relative_start,
             orf_relative_stop,
@@ -303,7 +401,6 @@ impl NetTD {
             passed_filter,
             _,
         ) = (
-            parts.next(),
             parts
                 .next()
                 .unwrap_or_else(|| {
@@ -317,7 +414,10 @@ impl NetTD {
                 })
                 .parse::<usize>()
                 .unwrap_or_else(|e| {
-                    panic!("ERROR: failed to parse ORF end from line: {} -> {e}", line);
+                    panic!(
+                        "ERROR: failed to parse ORF start from line: {} -> {e}",
+                        line
+                    );
                 })
                 + 1,
             parts
@@ -419,6 +519,7 @@ impl NetTD {
                 .unwrap_or_else(|| {
                     panic!("ERROR: failed to parse passed filter from line: {}", line);
                 })
+                .to_lowercase()
                 .parse::<bool>()
                 .unwrap_or_else(|e| {
                     panic!(

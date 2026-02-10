@@ -73,7 +73,7 @@ pub fn run_samba(args: SambaArgs) {
                 .unwrap_or_else(|e| {
                     panic!("ERROR: failed to write to file -> {e}");
                 });
-            writer.write_all(&stripped).unwrap_or_else(|e| {
+            writer.write_all(stripped).unwrap_or_else(|e| {
                 panic!("ERROR: failed to write to file -> {e}");
             });
             writer.write_all(b"\n").unwrap_or_else(|e| {

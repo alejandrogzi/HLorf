@@ -11,7 +11,7 @@
 //! learning model trained with true ORFs and false positives. The process is
 //! heavily parallelized to offer fast performance on large datasets.
 
-use genepred::{bed::BedFormat, Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer};
+use genepred::{Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer, bed::BedFormat};
 use memchr::memchr;
 use memmap2::Mmap;
 use rayon::prelude::*;
@@ -20,7 +20,7 @@ use twobit::TwoBitFile;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::{BufWriter, Write},
 };
 
@@ -125,7 +125,7 @@ fn write_chunk(
 
             let target = extract_seq(
                 &record,
-                &seq,
+                seq,
                 upstream_flank,
                 downstream_flank,
                 ignore_errors,
