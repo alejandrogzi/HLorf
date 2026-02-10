@@ -71,7 +71,8 @@ COPY modules/nets/netstart2 /opt/netstart2
 COPY modules/nets/TRANSAID /opt/transaid
 
 # Downloading models for netstart2
-RUN wget -O /opt/netstart2/src/model_config/models/netstart_model1.pth https://huggingface.co/linesandvad/netstart2_models/resolve/main/netstart_model1.pth?download=true \
+RUN mkdir -p /opt/netstart2/src/model_config/models \
+    && wget -O /opt/netstart2/src/model_config/models/netstart_model1.pth https://huggingface.co/linesandvad/netstart2_models/resolve/main/netstart_model1.pth?download=true \
     && wget -O /opt/netstart2/src/model_config/models/netstart_model2.pth https://huggingface.co/linesandvad/netstart2_models/resolve/main/netstart_model2.pth?download=true \
     && wget -O /opt/netstart2/src/model_config/models/netstart_model3.pth https://huggingface.co/linesandvad/netstart2_models/resolve/main/netstart_model3.pth?download=true \
     && wget -O /opt/netstart2/src/model_config/models/netstart_model4.pth https://huggingface.co/linesandvad/netstart2_models/resolve/main/netstart_model4.pth?download=true
