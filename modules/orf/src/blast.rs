@@ -11,7 +11,7 @@
 //! learning model trained with true ORFs and false positives. The process is
 //! heavily parallelized to offer fast performance on large datasets.
 
-use genepred::{Bed12, GenePred};
+use genepred::GenePred;
 use hashbrown::{hash_map::Entry, HashMap};
 use memchr::memchr;
 use memmap2::Mmap;
@@ -368,35 +368,6 @@ impl BlastRecord {
             percent_aligned,
         }
     }
-}
-
-/// Read a bed file and convert it to a hashmap of genepred records
-///
-/// # Arguments
-///
-/// * `bed` - The path to the bed file
-///
-/// # Returns
-///
-/// * `HashMap<String, GenePred>` - A hashmap of genepred records
-///
-/// # Example
-///
-/// ```rust
-/// let bed = get_bed(&args.bed);
-/// ```
-fn get_bed(bed: &PathBuf) -> HashMap<String, GenePred> {
-    genepred::Reader::<Bed12>::from_mmap(bed)
-        .unwrap_or_else(|e| panic!("ERROR: failed to read BED file -> {e}"))
-        .filter_map(|record| {
-            record.ok().map(|record| {
-                (
-                    from_utf8(record.name().unwrap()).unwrap().to_string(),
-                    record,
-                )
-            })
-        })
-        .collect::<HashMap<String, genepred::GenePred>>()
 }
 
 /// Run orfipy on the input fasta

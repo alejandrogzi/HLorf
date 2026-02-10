@@ -6,6 +6,7 @@ use orf::{
     blast::run_blast,
     chunk::run_chunk,
     cli::{Args, Commands},
+    nets::run_nets,
     samba::run_samba,
     tai::run_tai,
 };

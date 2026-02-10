@@ -12,7 +12,7 @@
 //! heavily parallelized to offer fast performance on large datasets.
 
 use dashmap::DashMap;
-use genepred::GenePred;
+use genepred::{Bed12, GenePred};
 use hashbrown::HashMap;
 use memchr::memchr;
 use memmap2::Mmap;
@@ -383,6 +383,35 @@ pub fn create_fasta(fasta: &Path, extension: &str) -> Option<BufWriter<File>> {
             panic!("ERROR: cannot create file -> {e}")
         })))
     }
+}
+
+/// Read a bed file and convert it to a hashmap of genepred records
+///
+/// # Arguments
+///
+/// * `bed` - The path to the bed file
+///
+/// # Returns
+///
+/// * `HashMap<String, GenePred>` - A hashmap of genepred records
+///
+/// # Example
+///
+/// ```rust
+/// let bed = get_bed(&args.bed);
+/// ```
+pub fn get_bed(bed: &PathBuf) -> HashMap<String, GenePred> {
+    genepred::Reader::<Bed12>::from_mmap(bed)
+        .unwrap_or_else(|e| panic!("ERROR: failed to read BED file -> {e}"))
+        .filter_map(|record| {
+            record.ok().map(|record| {
+                (
+                    from_utf8(record.name().unwrap()).unwrap().to_string(),
+                    record,
+                )
+            })
+        })
+        .collect::<HashMap<String, genepred::GenePred>>()
 }
 
 /// Given a position within the concatenated exonic sequence, this function
