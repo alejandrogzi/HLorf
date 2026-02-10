@@ -1,4 +1,4 @@
-name: chunker
+name: join
 channels:
   - conda-forge
 dependencies: rust=1.90

@@ -10,8 +10,8 @@ process JOIN {
     tuple val(meta), path(transaid)
 
     output:
-    path('*net'),          emit: net
-    path "versions.yml",  emit: versions
+    tuple val(meta), path('net/merged.net'), emit: net
+    path "versions.yml", emit: versions
 
     when:
     task.ext.when == null || task.ext.when
@@ -32,7 +32,8 @@ process JOIN {
 
     stub:
     """
-    touch ${meta.id}.net
+    touch net
+    touch net/merged.net
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
