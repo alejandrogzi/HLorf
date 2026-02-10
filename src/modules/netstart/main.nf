@@ -23,7 +23,7 @@ process NETSTART {
     -in $sequence \\
     -compute_device cpu \\
     -o chordata \\
-    -out ${meta.id}
+    -out ${meta.id}_netstart
     $args
 
     PREDICTION_COUNT=\$(wc -l < ${meta.id}*csv)

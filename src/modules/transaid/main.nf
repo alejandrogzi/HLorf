@@ -22,7 +22,7 @@ process TRANSAID {
     transaid \\
     --input $sequence \\
     --gpu -1 \\
-    --output ${meta.id} \\
+    --output ${meta.id}_transaid \\
     $args
 
     PREDICTION_COUNT=\$(wc -l < ${meta.id}*csv)
