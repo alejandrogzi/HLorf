@@ -26,10 +26,13 @@ workflow GET_CANDIDATES {
       RNASAMBA.out.bed
     )
 
+     NETSTART.out.netstart
+      .join(TRANSAID.out.transaid)
+      .join(RNASAMBA.out.bed)
+      .set { ch_nets }
+
     JOIN_NETS(
-        NETSTART.out.netstart,
-        TRANSAID.out.transaid,
-        RNASAMBA.out.bed
+        ch_nets
     )
 
     BLAST(

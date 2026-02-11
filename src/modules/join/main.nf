@@ -6,9 +6,7 @@ process JOIN {
     container 'alejandrogzi/orf-chunk:latest'
 
     input:
-    tuple val(meta), path(netstart)
-    tuple val(meta), path(transaid)
-    tuple val(meta), path(bed)
+    tuple val(meta), path(netstart), path(transaid), path(bed)
 
     output:
     tuple val(meta), path('net/merged.net'), emit: net
