@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.9"
+__version__ = "0.0.10"
 
 import argparse
 import logging
@@ -35,7 +35,7 @@ BLAST_COLS: List = [
     "inner_stops",
     "orf_type",
     "nmd_type",
-    "netstart_arg_score",
+    "netstart_atg_score",
     "transaid_start_score",
     "transaid_stop_score",
     "transaid_integrated_score",
