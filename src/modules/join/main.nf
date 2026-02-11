@@ -7,7 +7,7 @@ process JOIN {
 
     input:
     tuple val(meta), path(bed), path(netstart)
-    tuple val(meta), path(transaid)
+    tuple val(meta), path(_bed), path(transaid)
 
     output:
     tuple val(meta), path('net/merged.net'), emit: net
