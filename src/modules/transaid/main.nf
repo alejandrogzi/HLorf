@@ -26,6 +26,8 @@ process TRANSAID {
     $args
 
     PREDICTION_COUNT=\$(wc -l < ${meta.id}*csv)
+    
+    rm ${meta.id}_transaid.faa
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
