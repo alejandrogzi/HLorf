@@ -1,6 +1,6 @@
 process PREDICT {
     tag "$meta.id"
-    label 'process_low'
+    label 'process_single'
 
     conda "${moduleDir}/environment.yml"
     container 'alejandrogzi/orf-predict:latest'
