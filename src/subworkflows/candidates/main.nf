@@ -16,12 +16,20 @@ workflow GET_CANDIDATES {
     TRANSLATION(ch_pairs)
     RNASAMBA(ch_pairs)
 
-    NETSTART(RNASAMBA.out.fasta)
-    TRANSAID(RNASAMBA.out.fasta)
+    NETSTART(
+      RNASAMBA.out.fasta,
+      RNASAMBA.out.bed
+    )
+
+    TRANSAID(
+      RNASAMBA.out.fasta,
+      RNASAMBA.out.bed
+    )
 
     JOIN_NETS(
         NETSTART.out.netstart,
-        TRANSAID.out.transaid
+        TRANSAID.out.transaid,
+        RNASAMBA.out.bed
     )
 
     BLAST(

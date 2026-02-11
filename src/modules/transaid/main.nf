@@ -6,10 +6,11 @@ process TRANSAID {
     container 'alejandrogzi/orf-net:latest'
 
     input:
-    tuple val(meta), path(bed), path(sequence)
+    tuple val(meta), path(sequence)
+    tuple val(meta), path(bed)
 
     output:
-    tuple val(meta), path(bed), path("${meta.id}*csv"), emit: transaid
+    tuple val(meta), path("${meta.id}*csv"), emit: transaid
     tuple val(meta), env(PREDICTION_COUNT), emit: count
     path "versions.yml", emit: versions
 
