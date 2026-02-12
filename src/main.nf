@@ -27,7 +27,7 @@ workflow HLORF {
     def ch_regions  = Channel.fromPath(params.regions)
     def ch_sequence = Channel.fromPath(params.sequence)
     def ch_database = Channel.fromPath(params.database)
-    def chunkSize   = params.chunk_size ?: 250
+    def chunkSize   = params.chunk_size ?: 20
 
     def ch_versions = Channel.empty()
 
