@@ -7,7 +7,6 @@ process BLAST {
 
     input:
     tuple val(meta), path(bed), path(sequence), path(predictions), path(net)
-    tuple val(meta), path(net)
     each path(database)
 
     output:
