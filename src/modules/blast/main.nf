@@ -6,7 +6,7 @@ process BLAST {
     container 'alejandrogzi/orf-blast:latest'
 
     input:
-    tuple val(meta), path(bed), path(sequence), path(predictions)
+    tuple val(meta), path(bed), path(sequence), path(predictions), path(net)
     tuple val(meta), path(net)
     each path(database)
 

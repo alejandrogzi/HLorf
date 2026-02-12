@@ -35,9 +35,12 @@ workflow GET_CANDIDATES {
         ch_nets
     )
 
+    TRANSLATION.out.predictions
+    .join(JOIN_NETS.out.net)
+    .set { ch_pre_candidates }
+
     BLAST(
-        TRANSLATION.out.predictions,
-        JOIN_NETS.out.net,
+        ch_pre_candidates,
         ch_database
     )
     .blast
