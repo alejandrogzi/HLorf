@@ -8,7 +8,7 @@ process CONCAT {
         'quay.io/biocontainers/python:3.10' }"
 
     input:
-    tuple val(meta), path(beds, stageAs: 'bed_?/*'), path(tsvs, stageAs: 'tsv_?/*')
+    tuple val(meta), path(beds, stageAs: 'bed/*'), path(tsvs, stageAs: 'tsv/*')
 
     output:
     tuple path("*bed"), path("*tsv"), emit: files
@@ -19,8 +19,8 @@ process CONCAT {
 
     script:
     """
-    cat bed_*/*.bed > all.bed
-    awk 'NR==1 || FNR>1' tsv_*/*.tsv > all.tsv
+    cat bed/*.bed > all.bed
+    awk 'NR==1 || FNR>1' tsv/*.tsv > all.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
