@@ -34,8 +34,12 @@ TAXONOMY_DIR = MODEL_CONFIG_DIR / "taxonomy"
 HYPERPARAM_DIR = MODEL_CONFIG_DIR / "hyperparameters"
 PRETRAINED_DIR = MODEL_CONFIG_DIR / "pretrained_models" / "finetuned_models"
 MODELS_DIR = MODEL_CONFIG_DIR / "models"
+TOKENIZER_DIR = (
+    MODEL_CONFIG_DIR / "pretrained_models" / "tokenizers" / "facebook_esm2_t6_8M_UR50D"
+)
+ESM2_TOKENIZER_REPO = "facebook/esm2_t6_8M_UR50D"
 
-__version__ = "0.0.1-orf"
+__version__ = "0.0.2-orf"
 
 # Define dictionary for species and phyla
 conversion_dict = {
@@ -118,7 +122,8 @@ conversion_dict = {
 
 def load_model(model_no):
     """
-    Load the NetStart 2.0 model from Hugging Face Hub.
+    Load the NetStart 2.0 model checkpoint from local storage.
+    Optional Hub download is enabled only when NETSTART2_ALLOW_HF_DOWNLOAD=1.
 
     Args:
         model_no (int [1, 2, 3, 4]): The model number to load.
@@ -132,8 +137,15 @@ def load_model(model_no):
     model_name = f"netstart_model{model_no}.pth"
     local_path = MODELS_DIR / model_name
 
-    # If model isn't downloaded yet, get it from Hugging Face
+    allow_hf_download = os.environ.get("NETSTART2_ALLOW_HF_DOWNLOAD", "0") == "1"
+
     if not local_path.exists():
+        if not allow_hf_download:
+            raise FileNotFoundError(
+                f"Missing local model checkpoint: {local_path}. "
+                "Set NETSTART2_ALLOW_HF_DOWNLOAD=1 to download from Hugging Face."
+            )
+
         local_path = Path(
             hf_hub_download(
                 repo_id="linesandvad/netstart2_models",
@@ -146,6 +158,38 @@ def load_model(model_no):
     checkpoint = torch.load(local_path, map_location=torch.device("cpu"))
 
     return checkpoint
+
+
+def load_esm2_tokenizer(aa_seqs_len):
+    """
+    Load the ESM2 tokenizer from local files if available.
+    If missing, download once and cache into the project model_config directory.
+    """
+
+    if TOKENIZER_DIR.exists():
+        try:
+            return AutoTokenizer.from_pretrained(
+                str(TOKENIZER_DIR),
+                do_lower_case=False,
+                model_max_length=aa_seqs_len + 2,
+                local_files_only=True,
+            )
+        except OSError:
+            pass
+
+    tokenizer_aa = AutoTokenizer.from_pretrained(
+        ESM2_TOKENIZER_REPO,
+        do_lower_case=False,
+        model_max_length=aa_seqs_len + 2,
+    )
+
+    try:
+        TOKENIZER_DIR.mkdir(parents=True, exist_ok=True)
+        tokenizer_aa.save_pretrained(str(TOKENIZER_DIR))
+    except OSError:
+        pass
+
+    return tokenizer_aa
 
 
 def validate_origin(origin):
@@ -647,9 +691,9 @@ def extract_datasets(
                     nucleotide_seq_len = int(
                         first_stop_codon_pos_1_indexed - position_1_indexed
                     )
-                    assert (
-                        nucleotide_seq_len % 3 == 0
-                    ), "Start- and stop codon positions not extracted properly."
+                    assert nucleotide_seq_len % 3 == 0, (
+                        "Start- and stop codon positions not extracted properly."
+                    )
                     aa_seq_len = nucleotide_seq_len // 3
                     stop_codon_found = True
 
@@ -773,9 +817,9 @@ def extract_datasets_complement_strand(
                     nucleotide_seq_len = abs(
                         int(first_stop_codon_pos_1_indexed - position_1_indexed)
                     )
-                    assert (
-                        nucleotide_seq_len % 3 == 0
-                    ), "Start- and stop codon positions not extracted properly."
+                    assert nucleotide_seq_len % 3 == 0, (
+                        "Start- and stop codon positions not extracted properly."
+                    )
                     aa_seq_len = nucleotide_seq_len // 3
                     stop_codon_found = True
 
@@ -931,12 +975,8 @@ def create_encodings_aa(
     # Compute the sequence length
     aa_seqs_len = extract_upstream_aa + 1 + extract_downstream_aa
 
-    # Initialize the tokenizer
-    tokenizer_aa = AutoTokenizer.from_pretrained(
-        "facebook/esm2_t6_8M_UR50D",
-        do_lower_case=False,
-        model_max_length=aa_seqs_len + 2,  # Include special tokens (CLS and EOS)
-    )
+    # Initialize tokenizer once, preferring bundled local files.
+    tokenizer_aa = load_esm2_tokenizer(aa_seqs_len)
 
     # Split sequences into batches for efficiency
     sequences = df_input["aa_sequences"].tolist()
@@ -1301,9 +1341,9 @@ def ExtractDataAndModel(
     state_dict_result = model.load_state_dict(model_state_dict, strict=False)
     if hasattr(state_dict_result, "missing_keys"):
         # Make sure that there are no 'missing_keys'
-        assert (
-            not state_dict_result.missing_keys
-        ), f"Missing keys in state dict: {state_dict_result.missing_keys}"
+        assert not state_dict_result.missing_keys, (
+            f"Missing keys in state dict: {state_dict_result.missing_keys}"
+        )
         # Log if there are any 'unexpected_keys' for clarity
         # if state_dict_result.unexpected_keys:
         #    print(f"Warning: Unexpected keys in state dict: {state_dict_result.unexpected_keys}")

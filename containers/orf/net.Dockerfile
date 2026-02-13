@@ -77,6 +77,10 @@ RUN mkdir -p /opt/netstart2/src/model_config/models \
     && wget -O /opt/netstart2/src/model_config/models/netstart_model3.pth https://huggingface.co/linesandvad/netstart2_models/resolve/main/netstart_model3.pth?download=true \
     && wget -O /opt/netstart2/src/model_config/models/netstart_model4.pth https://huggingface.co/linesandvad/netstart2_models/resolve/main/netstart_model4.pth?download=true
 
+# Download and persist tokenizer assets at build time to avoid runtime Hub requests.
+RUN mkdir -p /opt/netstart2/src/model_config/pretrained_models/tokenizers/facebook_esm2_t6_8M_UR50D \
+    && python -c "from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('facebook/esm2_t6_8M_UR50D', do_lower_case=False).save_pretrained('/opt/netstart2/src/model_config/pretrained_models/tokenizers/facebook_esm2_t6_8M_UR50D')"
+
 # Make scripts executable and expose convenience shims
 RUN chmod +x /opt/netstart2/netstart2.py && \
     chmod +x /opt/transaid/transaid.py && \
@@ -87,10 +91,13 @@ RUN chmod +x /opt/netstart2/netstart2.py && \
 # Add to PATH so 'predict' command works
 ENV PATH="/opt/netstart2:$PATH"
 ENV PATH="/opt/transaid:$PATH"
+ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
 
 # Set up non-root user
 RUN useradd -m -u 1000 netuser && \
     chown -R netuser:netuser /opt/netstart2/src/model_config/models && \
+    chown -R netuser:netuser /opt/netstart2/src/model_config/pretrained_models/tokenizers && \
     chown -R netuser:netuser /opt/netstart2/src/model_config/hyperparameters && \
     chown -R netuser:netuser /opt/transaid/model
 
