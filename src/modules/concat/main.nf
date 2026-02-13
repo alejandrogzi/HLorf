@@ -22,6 +22,9 @@ process CONCAT {
     cat bed/*.bed > all.bed
     awk 'NR==1 || FNR>1' tsv/*.tsv > all.tsv
 
+    rm -rf bed
+    rm -rf tsv
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         cat: \$(cat --version 2>&1 | head -n 1 | sed 's/cat (GNU coreutils) //' )
