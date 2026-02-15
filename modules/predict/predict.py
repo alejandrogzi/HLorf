@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.10"
+__version__ = "0.0.11"
 
 import argparse
 import logging
@@ -61,18 +61,42 @@ BLAST_MASKING_NAN_COLS: List = [
 FEATURES: List = [
     "tai_start_score",
     "tai_stop_score",
+    "tai_mean_score",
     "inner_stops",
     "orf_type",
+    "nmd_type",
     "blast_pid",
     "neg_log10_blast_evalue",
     "blast_offset",
     "blast_percentage_aligned",
     "rna_score",
-    "tai_mean_score",
     "blast_match",
     "log_orf_len",
     "has_canonical_start",
     "has_canonical_stop",
+    "netstart_atg_score",
+    "transaid_start_score",
+    "transaid_stop_score",
+    "transaid_mean_score",
+    "transaid_integrated_score",
+]
+EXTRA_COLS: List = [
+    "start_ai_consensus",
+    "stop_ai_consensus",
+    "start_stop_symmetry",
+    "ai_quality_interaction",
+    "orf_quality_score"
+]
+MISSINGNESS_COLS: List = [
+    "rna_score",
+    "tai_start_score",
+    "tai_stop_score",
+    "tai_mean_score",
+    "netstart_atg_score",
+    "transaid_start_score",
+    "transaid_stop_score",
+    "transaid_mean_score",
+    "transaid_integrated_score",
 ]
 ORF_TYPE_MAPPING: Dict = {
     "CO": 1,
@@ -315,6 +339,8 @@ def predict(
     for col in query.columns:
         query[col] = pd.to_numeric(query[col], errors="coerce")
 
+    query = add_engineered_features(query)
+
     predictions = model.predict(query)
     probabilities = model.predict_proba(query)
     log.info("INFO: Finished predictions!")
@@ -522,6 +548,159 @@ def merge_tables(
 
     return merged
 
+
+def add_missing_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds indicator columns for missing values in the input DataFrame.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to add indicator columns to.
+
+    Returns
+    -------
+    pd.DataFrame
+        The input DataFrame with indicator columns added.
+    
+    Example
+    -------
+    >>> df = pd.DataFrame({'a': [1, 2, 3], 'b': [4, 5, 6]})
+    >>> df = add_missing_indicators(df)
+    >>> print(df.head())
+    """
+    for col in MISSINGNESS_COLS:
+        if col in df.columns:
+            df[f"is_missing_{col}"] = df[col].isna().astype(int)
+    return df
+
+
+def add_engineered_features(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Adds engineered features to the input DataFrame.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to add engineered features to.
+
+    Returns
+    -------
+    pd.DataFrame
+        The input DataFrame with engineered features added.
+
+    Example
+    -------
+    >>> df = pd.DataFrame({'a': [1, 2, 3], 'b': [4, 5, 6]})
+    >>> df = add_engineered_features(df)
+    >>> print(df.head())
+    """
+    df = df.copy()
+    df = add_missing_indicators(df)
+
+    df["blast_pid"] = df["blast_pid"]
+    df["blast_offset"] = df["blast_offset"]
+    df["blast_percentage_aligned"] = df["blast_percentage_aligned"]
+
+    # Fill NaNs with sentinel -1 for numeric model consumption
+    df[MISSINGNESS_COLS] = df[MISSINGNESS_COLS].fillna(-1)
+
+    # INFO: NMD interactions + additional marker
+    df["is_nmd_target"] = np.where(df["nmd_type"] == 1, 0, 1).astype(int)
+
+    conditions = [
+        # Both present
+        (df["is_missing_tai_mean_score"] == 0) & (df["is_missing_transaid_mean_score"] == 0),
+        # Only tai present
+        (df["is_missing_tai_mean_score"] == 0) & (df["is_missing_transaid_mean_score"] == 1),
+        # Only transaid present
+        (df["is_missing_tai_mean_score"] == 1) & (df["is_missing_transaid_mean_score"] == 0)
+    ]
+    choices = [
+        df[["tai_start_score", "transaid_start_score", "netstart_atg_score"]].mean(axis=1),
+        df[["tai_start_score", "netstart_atg_score"]].mean(axis=1),
+        df[["transaid_start_score", "netstart_atg_score"]].mean(axis=1)
+    ]
+    df["start_ai_consensus"] = np.select(conditions, choices, default=0)
+
+
+    choices = [
+        df[["tai_stop_score", "transaid_stop_score"]].mean(axis=1),
+        df[["tai_stop_score"]].mean(axis=1),
+        df[["transaid_stop_score"]].mean(axis=1)
+    ]
+    df["stop_ai_consensus"] = np.select(conditions, choices, default=0)
+
+    df["start_stop_symmetry"] = np.where(
+        (df["start_ai_consensus"] != 0) & (df["stop_ai_consensus"] != 0),
+        1 - np.abs(df["start_ai_consensus"] - df["stop_ai_consensus"]),
+        -1,
+    )
+
+    df["canonical_both"] = df["has_canonical_start"] * df["has_canonical_stop"]
+
+    df["tool_coverage"] = (
+        df["blast_match"]
+        + (1 - df["is_missing_tai_mean_score"])
+        + (1 - df["is_missing_rna_score"])
+        + (1 - df["is_missing_transaid_mean_score"])
+        + (1 - df["is_missing_netstart_atg_score"])
+    )
+
+    # INFO: is inner_stops == 1, else sequence is flawed
+    df["is_sequence_flawed"] = np.where(df["inner_stops"] == 1, 0, 1).astype(int)
+
+    # INFO: trying to create a variable that weights longer-uninterrupted-cannonical-non-NMD
+    # ORFs by using 'log_orf_len', 'cannonical_both', 'is_nmd_target', 'is_flawed_sequence'
+    min_log = df["log_orf_len"].min()
+    max_log = df["log_orf_len"].max()
+    print(f"ORF length range: {min_log:.2f}-{max_log:.2f}")
+    normalized_log_orf_len = (df["log_orf_len"] - min_log) / (max_log - min_log)
+
+    # gives 10% weight to length, and 30%/15%/15% to the other features
+    df["orf_quality_score"] = (
+        0.2 * normalized_log_orf_len
+        + 0.05 * df["canonical_both"]
+        + 0.25 * (1 - df["is_missing_tai_mean_score"])
+        + 0.20 * (1 - df["is_nmd_target"])
+        + 0.40 * (1 - df["is_sequence_flawed"])
+    )
+
+    df["is_high_quality_orf"] = np.where(
+        df["orf_quality_score"] > 0.6, 1, 0
+    )
+
+    df["length_nmd_interaction"] = 1 - (df["is_nmd_target"] * normalized_log_orf_len)
+    df["ai_quality_interaction"] = df[["rna_score", "start_ai_consensus", "stop_ai_consensus", "orf_quality_score"]].mean(axis=1)
+
+    # One-hot encode categorical / ordinal-like fields to avoid fake ordering
+    df = pd.get_dummies(df, columns=["orf_type"], prefix=["orf"], dummy_na=False)
+
+    # Select final feature set
+    exclude = {
+        "label",
+        "negative_type",
+        "species",
+        "id",
+        "transcript_id",
+        "chr",
+        "start",
+        "end",
+        "strand",
+        "start_codon",
+        "stop_codon",
+        "key",
+        "blast_evalue",
+        "blast_length",
+        "inner_stops",  # WARN: replaced by is_sequence_flawed
+        "nmd_type",  # WARN: replaced by is_nmd_target
+        "neg_log10_blast_evalue",
+    }
+    feature_cols = [c for c in df.columns if c not in exclude]
+
+    return df[feature_cols]
 
 def parse() -> argparse.Namespace:
     """
