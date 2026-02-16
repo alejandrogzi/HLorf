@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.13"
+__version__ = "0.0.14"
 
 import argparse
 import logging
@@ -85,7 +85,7 @@ EXTRA_COLS: List = [
     "stop_ai_consensus",
     "start_stop_symmetry",
     "ai_quality_interaction",
-    "orf_quality_score"
+    "orf_quality_score",
 ]
 MISSINGNESS_COLS: List = [
     "rna_score",
@@ -97,6 +97,45 @@ MISSINGNESS_COLS: List = [
     "transaid_stop_score",
     "transaid_mean_score",
     "transaid_integrated_score",
+]
+ORDER: List = [
+    "tai_start_score",
+    "tai_stop_score",
+    "orf_type",
+    "blast_pid",
+    "blast_offset",
+    "blast_percentage_aligned",
+    "rna_score",
+    "tai_mean_score",
+    "blast_match",
+    "log_orf_len",
+    "has_canonical_start",
+    "has_canonical_stop",
+    "netstart_atg_score",
+    "transaid_start_score",
+    "transaid_stop_score",
+    "transaid_integrated_score",
+    "transaid_mean_score",
+    "is_missing_rna_score",
+    "is_missing_tai_start_score",
+    "is_missing_tai_stop_score",
+    "is_missing_tai_mean_score",
+    "is_missing_netstart_atg_score",
+    "is_missing_transaid_start_score",
+    "is_missing_transaid_stop_score",
+    "is_missing_transaid_mean_score",
+    "is_missing_transaid_integrated_score",
+    "is_nmd_target",
+    "start_ai_consensus",
+    "stop_ai_consensus",
+    "start_stop_symmetry",
+    "canonical_both",
+    "tool_coverage",
+    "is_sequence_flawed",
+    "orf_quality_score",
+    "is_high_quality_orf",
+    "length_nmd_interaction",
+    "ai_quality_interaction",
 ]
 ORF_TYPE_MAPPING: Dict = {
     "CO": 1,
@@ -339,7 +378,7 @@ def predict(
     for col in query.columns:
         query[col] = pd.to_numeric(query[col], errors="coerce")
 
-    query = add_engineered_features(query)
+    query = add_engineered_features(query)[ORDER]
 
     predictions = model.predict(query)
     probabilities = model.predict_proba(query)
@@ -545,7 +584,9 @@ def merge_tables(
 
     merged["orf_type"] = merged["orf_type"].map(ORF_TYPE_MAPPING)
     merged["nmd_type"] = merged["nmd_type"].map(NMD_TYPE_MAPPING)
-    merged['transaid_mean_score'] = merged['transaid_start_score'] + merged['transaid_stop_score'] / 2
+    merged["transaid_mean_score"] = (
+        merged["transaid_start_score"] + merged["transaid_stop_score"] / 2
+    )
 
     return merged
 
@@ -563,7 +604,7 @@ def add_missing_indicators(df: pd.DataFrame) -> pd.DataFrame:
     -------
     pd.DataFrame
         The input DataFrame with indicator columns added.
-    
+
     Example
     -------
     >>> df = pd.DataFrame({'a': [1, 2, 3], 'b': [4, 5, 6]})
@@ -613,24 +654,28 @@ def add_engineered_features(
 
     conditions = [
         # Both present
-        (df["is_missing_tai_mean_score"] == 0) & (df["is_missing_transaid_mean_score"] == 0),
+        (df["is_missing_tai_mean_score"] == 0)
+        & (df["is_missing_transaid_mean_score"] == 0),
         # Only tai present
-        (df["is_missing_tai_mean_score"] == 0) & (df["is_missing_transaid_mean_score"] == 1),
+        (df["is_missing_tai_mean_score"] == 0)
+        & (df["is_missing_transaid_mean_score"] == 1),
         # Only transaid present
-        (df["is_missing_tai_mean_score"] == 1) & (df["is_missing_transaid_mean_score"] == 0)
+        (df["is_missing_tai_mean_score"] == 1)
+        & (df["is_missing_transaid_mean_score"] == 0),
     ]
     choices = [
-        df[["tai_start_score", "transaid_start_score", "netstart_atg_score"]].mean(axis=1),
+        df[["tai_start_score", "transaid_start_score", "netstart_atg_score"]].mean(
+            axis=1
+        ),
         df[["tai_start_score", "netstart_atg_score"]].mean(axis=1),
-        df[["transaid_start_score", "netstart_atg_score"]].mean(axis=1)
+        df[["transaid_start_score", "netstart_atg_score"]].mean(axis=1),
     ]
     df["start_ai_consensus"] = np.select(conditions, choices, default=0)
-
 
     choices = [
         df[["tai_stop_score", "transaid_stop_score"]].mean(axis=1),
         df[["tai_stop_score"]].mean(axis=1),
-        df[["transaid_stop_score"]].mean(axis=1)
+        df[["transaid_stop_score"]].mean(axis=1),
     ]
     df["stop_ai_consensus"] = np.select(conditions, choices, default=0)
 
@@ -669,12 +714,12 @@ def add_engineered_features(
         + 0.40 * (1 - df["is_sequence_flawed"])
     )
 
-    df["is_high_quality_orf"] = np.where(
-        df["orf_quality_score"] > 0.6, 1, 0
-    )
+    df["is_high_quality_orf"] = np.where(df["orf_quality_score"] > 0.6, 1, 0)
 
     df["length_nmd_interaction"] = 1 - (df["is_nmd_target"] * normalized_log_orf_len)
-    df["ai_quality_interaction"] = df[["rna_score", "start_ai_consensus", "stop_ai_consensus", "orf_quality_score"]].mean(axis=1)
+    df["ai_quality_interaction"] = df[
+        ["rna_score", "start_ai_consensus", "stop_ai_consensus", "orf_quality_score"]
+    ].mean(axis=1)
 
     # Select final feature set
     exclude = {
@@ -699,6 +744,7 @@ def add_engineered_features(
     feature_cols = [c for c in df.columns if c not in exclude]
 
     return df[feature_cols]
+
 
 def parse() -> argparse.Namespace:
     """
