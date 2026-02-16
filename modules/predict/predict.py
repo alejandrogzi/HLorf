@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.12"
+__version__ = "0.0.13"
 
 import argparse
 import logging
@@ -675,9 +675,6 @@ def add_engineered_features(
 
     df["length_nmd_interaction"] = 1 - (df["is_nmd_target"] * normalized_log_orf_len)
     df["ai_quality_interaction"] = df[["rna_score", "start_ai_consensus", "stop_ai_consensus", "orf_quality_score"]].mean(axis=1)
-
-    # One-hot encode categorical / ordinal-like fields to avoid fake ordering
-    df = pd.get_dummies(df, columns=["orf_type"], prefix=["orf"], dummy_na=False)
 
     # Select final feature set
     exclude = {
