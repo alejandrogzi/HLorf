@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.11"
+__version__ = "0.0.12"
 
 import argparse
 import logging
@@ -545,6 +545,7 @@ def merge_tables(
 
     merged["orf_type"] = merged["orf_type"].map(ORF_TYPE_MAPPING)
     merged["nmd_type"] = merged["nmd_type"].map(NMD_TYPE_MAPPING)
+    merged['transaid_mean_score'] = merged['transaid_start_score'] + merged['transaid_stop_score'] / 2
 
     return merged
 
