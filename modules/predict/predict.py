@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.14"
+__version__ = "0.0.15"
 
 import argparse
 import logging
@@ -157,6 +157,71 @@ log = logging.getLogger(__name__)
 logging.basicConfig(encoding="utf-8", level=logging.INFO)
 
 
+def normalize_missing_sentinels(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert legacy -1 placeholders into NaN so missingness indicators are correct.
+    """
+    for col in MISSINGNESS_COLS:
+        if col in df.columns:
+            df.loc[df[col] == -1, col] = np.nan
+    return df
+
+
+def fill_transaid_mean_from_components(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build transaid_mean_score from start/stop when not present.
+    """
+    if "transaid_mean_score" not in df.columns:
+        df["transaid_mean_score"] = np.nan
+
+    required = {"transaid_start_score", "transaid_stop_score", "transaid_mean_score"}
+    if required.issubset(df.columns):
+        can_derive = (
+            df["transaid_mean_score"].isna()
+            & df["transaid_start_score"].notna()
+            & df["transaid_stop_score"].notna()
+        )
+        df.loc[can_derive, "transaid_mean_score"] = (
+            df.loc[can_derive, "transaid_start_score"]
+            + df.loc[can_derive, "transaid_stop_score"]
+        ) / 2.0
+    return df
+
+
+def normalize_discrete_code_column(
+    series: pd.Series,
+    mapping: Dict[str, int],
+    column_name: str,
+) -> pd.Series:
+    numeric = pd.to_numeric(series, errors="coerce")
+    normalized = numeric.copy()
+
+    unresolved = normalized.isna()
+    if unresolved.any():
+        labels = series.astype(str).str.strip().str.upper()
+        mapped = labels.map(mapping)
+        normalized.loc[unresolved] = mapped.loc[unresolved]
+
+    remaining = normalized.isna()
+    if remaining.any():
+        unknown = (
+            series.loc[remaining]
+            .astype(str)
+            .str.strip()
+            .replace("", "<empty>")
+            .unique()
+            .tolist()
+        )
+        log.warning(
+            "WARNING: %s has %d unmapped values; examples: %s. They remain NaN.",
+            column_name,
+            int(remaining.sum()),
+            unknown[:8],
+        )
+
+    return normalized
+
+
 def run(args: argparse.Namespace) -> None:
     """
     Executes the main workflow for loading a model, performing predictions,
@@ -202,7 +267,7 @@ def run(args: argparse.Namespace) -> None:
     log.info("INFO: Model loaded successfully!")
     log.info(f"INFO: Number of features: {model.n_features_in_}")
 
-    table = predict(args.blast, args.samba, model)
+    table = predict(args.blast, args.samba, model, threshold=args.threshold)
 
     _ = map_to_blocks(
         table,
@@ -211,6 +276,7 @@ def run(args: argparse.Namespace) -> None:
         args.prefix,
         args.min_score_max_predictions,
         args.max_predictions,
+        keep_raw=args.keep_raw,
     )
 
 
@@ -221,6 +287,7 @@ def map_to_blocks(
     prefix: str,
     min_score_max_predictions: float,
     max_predictions: int,
+    keep_raw: bool = False,
 ) -> None:
     """
     Maps prediction results to genomic blocks based on alignment data and saves them.
@@ -302,13 +369,13 @@ def map_to_blocks(
     table.loc[table["rank"] > 1, "id"] += "#DU"
 
     log.info(f"INFO: Final size of table: {len(table)}")
-    log.info(f"INFO: Writing predictions to {args.outdir}/{prefix}.predictions.tsv")
+    log.info(f"INFO: Writing predictions to {outdir}/{prefix}.predictions.tsv")
 
     table.drop(columns=["prefix", "rank"]).to_csv(
         f"{outdir}/{prefix}.predictions.tsv", index=False, header=True, sep="\t"
     )
 
-    if args.keep_raw:
+    if keep_raw:
         merged.drop(columns=["prefix", "start", "end"]).to_csv(
             f"{outdir}/{prefix}.all.predictions.bed",
             sep="\t",
@@ -339,6 +406,7 @@ def predict(
     blast: Union[str, PathLike],
     samba: Union[str, PathLike],
     model: xgb.XGBClassifier,
+    threshold: float = 0.5,
 ) -> pd.DataFrame:
     """
     Performs predictions using a loaded RandomForestClassifier model on input data.
@@ -380,8 +448,8 @@ def predict(
 
     query = add_engineered_features(query)[ORDER]
 
-    predictions = model.predict(query)
     probabilities = model.predict_proba(query)
+    predictions = (probabilities[:, 1] >= threshold).astype(int)
     log.info("INFO: Finished predictions!")
 
     table["predicted_class"] = predictions
@@ -452,12 +520,10 @@ def read_blast(path: Union[str, PathLike, Path]) -> pd.DataFrame:
     """
     blast = pd.read_csv(path, sep="\t", header=None, names=BLAST_COLS)
 
-    # INFO: needs to be the cannonical ID
+    # INFO: needs to be the canonical ID
     # R1_chr1__OR2#NE1 -> R1_chr1 [samba] + R1_chr1:1-10(+) [bed]
-    if len(blast["id"].str.split("_ORF")) > 1:
-        blast["prefix"] = blast["id"].str.split("_ORF").str[0]
-    else:
-        blast["prefix"] = blast["id"].str.split(".p").str[0]
+    blast["prefix"] = blast["id"].astype(str).str.split("_ORF").str[0]
+    blast["prefix"] = blast["prefix"].str.split(".p").str[0]
 
     blast["key"] = (
         blast["prefix"]
@@ -557,6 +623,7 @@ def merge_tables(
             "ERROR: BLAST and RNASamba files do not match! Some BLAST rows do not have a prediction in RNASamba!"
         )
 
+    merged = normalize_missing_sentinels(merged)
     merged["tai_mean_score"] = (merged.tai_start_score + merged.tai_stop_score) / 2
     merged["blast_match"] = [1 if x > 0 else 0 for x in merged.blast_percentage_aligned]
     merged["log_orf_len"] = np.log1p(
@@ -582,11 +649,13 @@ def merge_tables(
         BLAST_MASKING_NAN_COLS,
     ] = np.nan
 
-    merged["orf_type"] = merged["orf_type"].map(ORF_TYPE_MAPPING)
-    merged["nmd_type"] = merged["nmd_type"].map(NMD_TYPE_MAPPING)
-    merged["transaid_mean_score"] = (
-        merged["transaid_start_score"] + merged["transaid_stop_score"] / 2
+    merged["orf_type"] = normalize_discrete_code_column(
+        merged["orf_type"], ORF_TYPE_MAPPING, "orf_type"
     )
+    merged["nmd_type"] = normalize_discrete_code_column(
+        merged["nmd_type"], NMD_TYPE_MAPPING, "nmd_type"
+    )
+    merged = fill_transaid_mean_from_components(merged)
 
     return merged
 
@@ -640,6 +709,8 @@ def add_engineered_features(
     >>> print(df.head())
     """
     df = df.copy()
+    df = normalize_missing_sentinels(df)
+    df = fill_transaid_mean_from_components(df)
     df = add_missing_indicators(df)
 
     df["blast_pid"] = df["blast_pid"]
@@ -703,7 +774,8 @@ def add_engineered_features(
     min_log = df["log_orf_len"].min()
     max_log = df["log_orf_len"].max()
     print(f"ORF length range: {min_log:.2f}-{max_log:.2f}")
-    normalized_log_orf_len = (df["log_orf_len"] - min_log) / (max_log - min_log)
+    denom = max(max_log - min_log, 1e-8)
+    normalized_log_orf_len = (df["log_orf_len"] - min_log) / denom
 
     # gives 10% weight to length, and 30%/15%/15% to the other features
     df["orf_quality_score"] = (
@@ -781,7 +853,7 @@ def parse() -> argparse.Namespace:
         "-T",
         "--threshold",
         type=float,
-        default=0.03,
+        default=0.46796,
         help="Use a non-default threshold for classification",
     )
     parser.add_argument(
