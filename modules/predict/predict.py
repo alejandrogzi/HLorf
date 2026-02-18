@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.15"
+__version__ = "0.0.16"
 
 import argparse
 import logging
@@ -115,7 +115,7 @@ ORDER: List = [
     "transaid_start_score",
     "transaid_stop_score",
     "transaid_integrated_score",
-    "transaid_mean_score",
+    # "transaid_mean_score",
     "is_missing_rna_score",
     "is_missing_tai_start_score",
     "is_missing_tai_stop_score",
@@ -160,6 +160,25 @@ logging.basicConfig(encoding="utf-8", level=logging.INFO)
 def normalize_missing_sentinels(df: pd.DataFrame) -> pd.DataFrame:
     """
     Convert legacy -1 placeholders into NaN so missingness indicators are correct.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to normalize missing sentinels in.
+
+    Returns
+    -------
+    pd.DataFrame
+        The input DataFrame with missing sentinels normalized.
+
+    Example
+    -------
+    >>> df = pd.DataFrame({
+    >>>     'a': [1, 2, 3],
+    >>>     'b': [-1, -1, -1]
+    >>> })
+    >>> df = normalize_missing_sentinels(df)
+    >>> print(df.head())
     """
     for col in MISSINGNESS_COLS:
         if col in df.columns:
@@ -170,6 +189,26 @@ def normalize_missing_sentinels(df: pd.DataFrame) -> pd.DataFrame:
 def fill_transaid_mean_from_components(df: pd.DataFrame) -> pd.DataFrame:
     """
     Build transaid_mean_score from start/stop when not present.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to fill transaid_mean_score from components.
+
+    Returns
+    -------
+    pd.DataFrame
+        The input DataFrame with transaid_mean_score filled from components.
+
+    Example
+    -------
+    >>> df = pd.DataFrame({
+    >>>     'transaid_start_score': [1, 2, 3],
+    >>>     'transaid_stop_score': [4, 5, 6],
+    >>>     'transaid_mean_score': [7, 8, 9]
+    >>> })
+    >>> df = fill_transaid_mean_from_components(df)
+    >>> print(df.head())
     """
     if "transaid_mean_score" not in df.columns:
         df["transaid_mean_score"] = np.nan
@@ -193,6 +232,30 @@ def normalize_discrete_code_column(
     mapping: Dict[str, int],
     column_name: str,
 ) -> pd.Series:
+    """
+    Normalize a discrete code column by mapping values to integers.
+
+    Parameters
+    ----------
+    series : pd.Series
+        The series to normalize.
+    mapping : Dict[str, int]
+        The mapping from original values to integers.
+    column_name : str
+        The name of the column being normalized.
+
+    Returns
+    -------
+    pd.Series
+        The normalized series.
+
+    Example
+    -------
+    >>> series = pd.Series(['A', 'B', 'C', 'D'])
+    >>> mapping = {'A': 1, 'B': 2, 'C': 3, 'D': 4}
+    >>> normalized_series = normalize_discrete_code_column(series, mapping, 'column_name')
+    >>> print(normalized_series)
+    """
     numeric = pd.to_numeric(series, errors="coerce")
     normalized = numeric.copy()
 
@@ -812,6 +875,7 @@ def add_engineered_features(
         "inner_stops",  # WARN: replaced by is_sequence_flawed
         "nmd_type",  # WARN: replaced by is_nmd_target
         "neg_log10_blast_evalue",
+        "transaid_mean_score",
     }
     feature_cols = [c for c in df.columns if c not in exclude]
 
@@ -853,7 +917,7 @@ def parse() -> argparse.Namespace:
         "-T",
         "--threshold",
         type=float,
-        default=0.46796,
+        default=0.5,
         help="Use a non-default threshold for classification",
     )
     parser.add_argument(
