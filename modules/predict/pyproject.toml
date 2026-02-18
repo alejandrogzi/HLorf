@@ -1,6 +1,6 @@
 [project]
 name = "predict"
-version = "0.0.4"
+version = "0.0.16"
 description = "ORF Gradient Boosting Model"
 authors = [
     { name = "Alejandro Gonzales-Irribarren", email = "alejandrxgzi@gmail.com" },
