@@ -18,9 +18,9 @@ process PREDICT {
 
     script:
     def args = task.ext.args ?: ''
-    def threshold = task.ext.threshold ?: 0.03
-    def min_score_max_predictions = task.ext.min_score_max_predictions ?: 0.70
-    def max_predictions = task.ext.max_predictions ?: 1
+    def threshold = task.ext.threshold ?: 0.0
+    def min_score_max_predictions = task.ext.min_score_max_predictions ?: 0.50
+    def max_predictions = task.ext.max_predictions ?: 3
     """
     predict.py \\
     --blast $blast \\
@@ -30,7 +30,8 @@ process PREDICT {
     --prefix ${meta.id} \\
     --threshold $threshold \\
     --min-score-max-predictions $min_score_max_predictions \\
-    --max-predictions $max_predictions
+    --max-predictions $max_predictions \\
+    $args
 
     BLAST_PREDICTION_COUNT=\$(wc -l < ${blast})
     SAMBA_PREDICTION_COUNT=\$(wc -l < ${samba})
