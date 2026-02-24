@@ -7,6 +7,7 @@ process RNASAMBA {
 
     input:
     tuple val(meta), path(bed), path(sequence)
+    tuple val(_), path(weights)
 
     output:
     tuple val(meta), path("${meta.id}/*tsv"), emit: samba
@@ -27,6 +28,7 @@ process RNASAMBA {
     --outdir ${meta.id} \\
     --upstream-flank $upstream \\
     --downstream-flank $downstream \\
+    --weights $weights \\
     $args
 
     mv ${meta.id}/samba/*tsv ${meta.id}/ && rm -rf ${meta.id}/samba

@@ -4,6 +4,7 @@ include { NETSTART }    from '../../modules/netstart/main.nf'
 include { TRANSAID }    from '../../modules/transaid/main.nf'
 include { BLAST }       from '../../modules/blast/main.nf'
 include { JOIN as JOIN_NETS }   from '../../modules/join/main.nf'
+include { WGET as WGET_SAMBA_WEIGHTS } from '../../modules/wget/main.nf'
 
 workflow GET_CANDIDATES {
     take:
@@ -13,8 +14,18 @@ workflow GET_CANDIDATES {
     main:
     ch_versions = Channel.empty()
 
+    ch_samba_weights = WGET_SAMBA_WEIGHTS(
+        Channel.value(
+          params.samba_weights
+        ).map { url -> [ [id : url.tokenize('/')[-1]], url ] }
+    )
+
     TRANSLATION(ch_pairs)
-    RNASAMBA(ch_pairs)
+
+    RNASAMBA(
+      ch_pairs,
+      ch_samba_weights.outfile
+    )
 
     NETSTART(
       RNASAMBA.out.fasta,
