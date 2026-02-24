@@ -11,7 +11,7 @@
 //! learning model trained with true ORFs and false positives. The process is
 //! heavily parallelized to offer fast performance on large datasets.
 
-use genepred::{Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer, bed::BedFormat};
+use genepred::{bed::BedFormat, Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer};
 use memchr::memchr;
 use memmap2::Mmap;
 use rayon::prelude::*;
@@ -20,8 +20,8 @@ use twobit::TwoBitFile;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{
-    fs::{File, create_dir_all},
-    io::{BufWriter, Write},
+    fs::{create_dir_all, File},
+    io::{BufWriter, Seek, SeekFrom, Write},
 };
 
 use crate::cli::ChunkArgs;
@@ -174,15 +174,32 @@ fn write_chunk(
                     .unwrap_or_else(|e| panic!("{}", e));
             }
         });
+
+    // INFO: if file is empty, remove it
+    if writer.get_ref().seek(SeekFrom::Current(0)).unwrap_or(0) == 0 {
+        std::fs::remove_file(tmp).unwrap_or_else(|e| panic!("{}", e));
+    }
 }
 
 #[derive(Debug)]
 #[allow(dead_code)]
 enum RangeError {
-    UpstreamUnderflow {
-        exon_start: usize,
-        upstream_flank: usize,
-    },
+    Underflow { feature_coord: usize, flank: usize },
+}
+
+impl std::fmt::Display for RangeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RangeError::Underflow {
+                feature_coord,
+                flank,
+            } => write!(
+                f,
+                "ERROR: Feature coordinate {} is underflowing by {} bases",
+                feature_coord, flank
+            ),
+        }
+    }
 }
 
 fn slice_range_for_exon(
@@ -199,16 +216,21 @@ fn slice_range_for_exon(
     let start = if is_first {
         exon_start
             .checked_sub(upstream_flank)
-            .ok_or(RangeError::UpstreamUnderflow {
-                exon_start,
-                upstream_flank,
+            .ok_or(RangeError::Underflow {
+                feature_coord: exon_start,
+                flank: upstream_flank,
             })?
     } else {
         exon_start
     };
 
     let end = if is_last {
-        exon_end.saturating_add(downstream_flank)
+        exon_end
+            .checked_add(downstream_flank)
+            .ok_or(RangeError::Underflow {
+                feature_coord: exon_end,
+                flank: downstream_flank,
+            })?
     } else {
         exon_end
     };

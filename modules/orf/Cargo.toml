@@ -1,6 +1,6 @@
 [package]
 name = "orf"
-version = "0.0.17"
+version = "0.0.18"
 edition = "2024"
 
 [dependencies]
@@ -11,7 +11,7 @@ memmap2 = "0.9.5"
 memchr = "2.7.4"
 clap = { version = "4.0", features = ["derive"] }
 rayon = "1.11.0"
-genepred = { version = "0.0.8", features = ["mmap", "rayon"] }
+genepred = { version = "0.0.9", features = ["mmap", "rayon"] }
 twobit = "0.2.1"
 num_cpus = "1.17.0"
 simple_logger = "5.0.0"
