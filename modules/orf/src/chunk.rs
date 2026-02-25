@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{
     fs::{create_dir_all, File},
-    io::{BufWriter, Seek, SeekFrom, Write},
+    io::{BufWriter, Write},
 };
 
 use crate::cli::ChunkArgs;
@@ -175,9 +175,16 @@ fn write_chunk(
             }
         });
 
-    // INFO: if file is empty, remove it
-    if writer.get_ref().seek(SeekFrom::Current(0)).unwrap_or(0) == 0 {
-        std::fs::remove_file(tmp).unwrap_or_else(|e| panic!("{}", e));
+    // INFO: flush first so data is written to the file
+    writer.flush().unwrap_or_else(|e| panic!("{}", e));
+    f_writer.flush().unwrap_or_else(|e| panic!("{}", e));
+
+    // INFO: check actual file size via metadata
+    let bed_path = tmp.clone();
+    let file_len = std::fs::metadata(&bed_path).map(|m| m.len()).unwrap_or(0);
+    if file_len == 0 {
+        std::fs::remove_file(&bed_path).unwrap_or_else(|e| panic!("{}", e));
+        std::fs::remove_file(bed_path.with_extension("fa")).unwrap_or_else(|e| panic!("{}", e));
     }
 }
 
