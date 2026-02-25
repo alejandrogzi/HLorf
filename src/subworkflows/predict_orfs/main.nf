@@ -7,8 +7,13 @@ workflow PREDICT_ORFS {
 
     main:
     ch_versions = Channel.empty()
+    ch_raw = Channel.empty()
 
     PREDICT(ch_candidates)
+
+    if (params.predict_keep_raw) {
+        PREDICT.out.raw.set { ch_raw }
+    }
 
     ch_blast_counts
     .join(PREDICT.out.counts)
@@ -18,6 +23,7 @@ workflow PREDICT_ORFS {
 
     emit:
     orfs = PREDICT.out.orfs
+    raw = ch_raw
     counts = ch_counts
     versions = ch_versions
 }

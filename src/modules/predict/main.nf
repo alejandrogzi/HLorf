@@ -9,7 +9,8 @@ process PREDICT {
     tuple val(meta), path(bed), path(blast), path(samba)
 
     output:
-    tuple val(meta), path("${meta.id}/*bed"), path("${meta.id}/*tsv"), emit: orfs
+    tuple val(meta), path("${meta.id}/${meta.id}.predictions.bed"), path("${meta.id}/${meta.id}.predictions.tsv"), emit: orfs
+    tuple val(meta), path("${meta.id}/${meta.id}.all.predictions.bed"), path("${meta.id}/${meta.id}.all.predictions.tsv"), emit: raw, optional: true
     tuple val(meta), env(BLAST_PREDICTION_COUNT), env(SAMBA_PREDICTION_COUNT), env(ALL_PREDICTED_REGIONS), env(UNIQUE_PREDICTED_REGIONS), env(KEPT_REGIONS), emit: counts
     path "versions.yml", emit: versions
 

@@ -12,6 +12,7 @@ nextflow.enable.dsl=2
 
 include { CHUNKER }      from './modules/chunker/main.nf'
 include { CONCAT }       from './modules/concat/main.nf'
+include { CONCAT as CONCAT_RAW }   from './modules/concat/main.nf'
 include { EMAIL }        from './modules/email/main.nf'
 
 include { PREDICT_ORFS } from './subworkflows/predict_orfs/main.nf'
@@ -67,6 +68,21 @@ workflow HLORF {
             tuple([id: 'all'], beds, tsvs)
         }
         .set { ch_all }
+
+    if (params.predict_keep_raw) {
+        PREDICT_ORFS.out.raw
+            .toList()
+            .map { items ->
+                def beds = items.collect { meta, bed, tsv -> bed }
+                def tsvs = items.collect { meta, bed, tsv -> tsv }
+                tuple([id: 'raw'], beds, tsvs)
+            }
+            .set { ch_raw }
+
+        CONCAT_RAW(
+            ch_raw
+        )
+    }
 
     ch_versions = ch_versions.mix(GET_CANDIDATES.out.versions)
     ch_versions = ch_versions.mix(PREDICT_ORFS.out.versions)
