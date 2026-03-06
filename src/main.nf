@@ -65,7 +65,7 @@ workflow PIPELINE_COMPLETION {
 
 workflow {
     XORF (
-       Channel.fromPath(params.regions),
+       Channel.fromPath(params.regions).map { it -> [ [id: it.baseName], it ] },
        Channel.fromPath(params.sequence),
        Channel.fromPath(params.database),
        params.outdir,

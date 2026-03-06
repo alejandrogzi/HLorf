@@ -47,12 +47,18 @@ workflow XORF {
       )
 
       CHUNKER.out.chunked_regions
-          .flatten()
-          .map { region -> [[id: region.baseName], region] }
+          .flatMap { meta, region -> 
+              def regions = region instanceof List ? region : [region]
+              regions.collect { it ->
+                [ meta + [name: it.baseName], it] }
+              }
           .join(
               CHUNKER.out.chunked_sequences
-                  .flatten()
-                  .map { fasta -> [[id: fasta.baseName], fasta] }
+                .flatMap { meta, fasta -> 
+                    def fas = fasta instanceof List ? fasta : [fasta]
+                    fas.collect { it ->
+                      [ meta + [name: it.baseName], it] }
+                }
           )
           .set { ch_pairs }
 

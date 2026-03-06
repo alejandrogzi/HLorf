@@ -6,14 +6,14 @@ process CHUNKER {
     container 'alejandrogzi/orf-chunk:latest'
 
     input:
-    path(regions)
+    tuple val(meta), path(regions)
     path(sequence)
     val(chunk_size)
 
     output:
     path('tmp'),          emit: chunks
-    path('tmp/*bed'),     emit: chunked_regions
-    path('tmp/*fa'),      emit: chunked_sequences
+    tuple val(meta), path('tmp/*bed'),     emit: chunked_regions
+    tuple val(meta), path('tmp/*fa'),      emit: chunked_sequences
     path "versions.yml",  emit: versions
 
     when:
