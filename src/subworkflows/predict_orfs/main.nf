@@ -4,6 +4,7 @@ workflow PREDICT_ORFS {
     take:
     ch_candidates
     ch_blast_counts
+    predict_keep_raw
 
     main:
     ch_versions = Channel.empty()
@@ -11,7 +12,7 @@ workflow PREDICT_ORFS {
 
     PREDICT(ch_candidates)
 
-    if (params.predict_keep_raw) {
+    if (predict_keep_raw) {
         PREDICT.out.raw.set { ch_raw }
     }
 

@@ -31,6 +31,8 @@ workflow XORF {
       output_dir
       predict_keep_raw
       chunk_size
+      samba_weights
+      predict_keep_raw
 
     main:
       def ch_regions  = regions
@@ -66,12 +68,14 @@ workflow XORF {
 
       GET_CANDIDATES(
           ch_pairs,
-          ch_database
+          ch_database,
+          samba_weights
       )
 
       PREDICT_ORFS(
           GET_CANDIDATES.out.candidates,
-          GET_CANDIDATES.out.counts
+          GET_CANDIDATES.out.counts,
+          predict_keep_raw
       )
 
       PREDICT_ORFS.out.orfs

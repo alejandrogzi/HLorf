@@ -10,13 +10,14 @@ workflow GET_CANDIDATES {
     take:
     ch_pairs
     ch_database
+    samba_weights
 
     main:
     ch_versions = Channel.empty()
 
     ch_samba_weights = WGET_SAMBA_WEIGHTS(
         Channel.value(
-          params.samba_weights
+          samba_weights
         ).map { url -> [ [id : url.tokenize('/')[-1]], url ] }
     )
 

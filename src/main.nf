@@ -70,7 +70,9 @@ workflow {
        Channel.fromPath(params.database),
        params.outdir,
        params.predict_keep_raw,
-       params.chunk_size
+       params.chunk_size,
+       params.samba_weights,
+       params.predict_keep_raw
     )
 
     PIPELINE_COMPLETION (
