@@ -11,7 +11,7 @@ process RNASAMBA {
 
     output:
     tuple val(meta), path("${meta.id}/*tsv"), emit: samba
-    tuple val(meta), path("${meta.id}*strip.fa"), emit: fasta
+    tuple val(meta), path("${meta.id}/*strip.fa"), emit: fasta
     tuple val(meta), path(bed), emit: bed
     path "versions.yml", emit: versions
 
@@ -31,7 +31,8 @@ process RNASAMBA {
     --weights $weights \\
     $args
 
-    mv ${meta.id}/samba/*tsv ${meta.id}/ && rm -rf ${meta.id}/samba
+    mv ${meta.id}/samba/*tsv ${meta.id}/${meta.id}.${meta.name}.samba.tsv && rm -rf ${meta.id}/samba
+    mv ${meta.name}.tmp.strip.fa ${meta.id}/${meta.id}.${meta.name}.strip.fa 
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -42,8 +43,8 @@ process RNASAMBA {
 
     stub:
     """
-    touch *strip.fa
     touch ${meta.id}
+    touch ${meta.id}/*strip.fa
     touch ${meta.id}/samba
     touch ${meta.id}/samba/*
 
