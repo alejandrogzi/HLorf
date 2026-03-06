@@ -3,7 +3,7 @@ process TRANSAID {
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
-    container 'alejandrogzi/orf-net:latest'
+    container 'ghcr.io/alejandrogzi/orf-net:latest'
 
     input:
     tuple val(meta), path(sequence)

@@ -3,7 +3,7 @@ process JOIN {
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
-    container 'alejandrogzi/orf-chunk:latest'
+    container 'ghcr.io/alejandrogzi/orf-chunk:latest'
 
     input:
     tuple val(meta), path(netstart), path(transaid), path(bed)

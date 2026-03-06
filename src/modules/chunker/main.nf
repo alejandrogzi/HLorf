@@ -3,7 +3,7 @@ process CHUNKER {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container 'alejandrogzi/orf-chunk:latest'
+    container 'ghcr.io/alejandrogzi/orf-chunk:latest'
 
     input:
     tuple val(meta), path(regions)
