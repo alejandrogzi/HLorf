@@ -11,7 +11,7 @@ process CONCAT {
     tuple val(meta), path(beds, stageAs: 'bed/*'), path(tsvs, stageAs: 'tsv/*')
 
     output:
-    tuple path("*bed"), path("*tsv"), emit: files
+    tuple path("*bed"), path("*tsv"), optional: true, emit: files
     path "versions.yml", emit: versions
 
     when:
@@ -19,11 +19,13 @@ process CONCAT {
 
     script:
     """
-    cat bed/*.bed > all.bed
-    awk 'NR==1 || FNR>1' tsv/*.tsv > all.tsv
+    if [ -d bed ]; then
+      cat bed/*.bed > all.bed
+      awk 'NR==1 || FNR>1' tsv/*.tsv > all.tsv
 
-    rm -rf bed
-    rm -rf tsv
+      rm -rf bed
+      rm -rf tsv
+    fi
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
