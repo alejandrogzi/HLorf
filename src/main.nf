@@ -10,114 +10,14 @@ nextflow.enable.dsl=2
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { CHUNKER }      from './modules/chunker/main.nf'
-include { CONCAT }       from './modules/concat/main.nf'
-include { CONCAT as CONCAT_RAW }   from './modules/concat/main.nf'
 include { EMAIL }        from './modules/email/main.nf'
-
-include { PREDICT_ORFS } from './subworkflows/predict_orfs/main.nf'
-include { GET_CANDIDATES } from './subworkflows/candidates/main.nf'
+include { XORF }         from './subworkflows/xorf/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     LOCAL SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
-workflow HLORF {
-    def ch_regions  = Channel.fromPath(params.regions)
-    def ch_sequence = Channel.fromPath(params.sequence)
-    def ch_database = Channel.fromPath(params.database)
-    def chunkSize   = params.chunk_size ?: 20
-
-    def ch_versions = Channel.empty()
-
-    CHUNKER(
-        ch_regions,
-        ch_sequence,
-        chunkSize,
-    )
-
-    CHUNKER.out.chunked_regions
-        .flatten()
-        .map { region -> [[id: region.baseName], region] }
-        .join(
-            CHUNKER.out.chunked_sequences
-                .flatten()
-                .map { fasta -> [[id: fasta.baseName], fasta] }
-        )
-        .set { ch_pairs }
-
-    ch_versions = ch_versions.mix(CHUNKER.out.versions)
-
-    GET_CANDIDATES(
-        ch_pairs,
-        ch_database
-    )
-
-    PREDICT_ORFS(
-        GET_CANDIDATES.out.candidates,
-        GET_CANDIDATES.out.counts
-    )
-
-    PREDICT_ORFS.out.orfs
-        .toList()
-        .map { items ->
-            def beds = items.collect { meta, bed, tsv -> bed }
-            def tsvs = items.collect { meta, bed, tsv -> tsv }
-            tuple([id: 'all'], beds, tsvs)
-        }
-        .set { ch_all }
-
-    if (params.predict_keep_raw) {
-        PREDICT_ORFS.out.raw
-            .toList()
-            .map { items ->
-                def beds = items.collect { meta, bed, tsv -> bed }
-                def tsvs = items.collect { meta, bed, tsv -> tsv }
-                tuple([id: 'raw'], beds, tsvs)
-            }
-            .set { ch_raw }
-
-        CONCAT_RAW(
-            ch_raw
-        )
-    }
-
-    ch_versions = ch_versions.mix(GET_CANDIDATES.out.versions)
-    ch_versions = ch_versions.mix(PREDICT_ORFS.out.versions)
-
-    CONCAT(
-        ch_all
-    )
-
-    PREDICT_ORFS.out.counts
-    .map { meta, initial, netstart, transaid, ns_td, tai, blast, samba, all, unique, kept ->
-        def line = "${meta.id}\t${initial}\t${netstart}\t${transaid}\t${ns_td}\t${tai}\t${blast}\t${samba}\t${all}\t${unique}\t${kept}"
-        return line
-    }
-    .collectFile(
-      name: 'counts.tsv',
-      newLine: true,
-      storeDir: "${params.outdir}/samplesheets"
-    )
-    .set { ch_counts }
-
-    ch_versions = ch_versions.mix(CONCAT.out.versions)
-    ch_pipeline_versions = ch_versions
-        .collectFile(
-            name:      "HLorf.versions.yml",
-            storeDir:  "${params.outdir}/pipeline_info",
-            sort:      true,
-            keepHeader: false,
-            newLine:   true
-        )
-
-    emit:
-    files = CONCAT.out.files
-    counts = ch_counts
-    versions = ch_pipeline_versions
-}
 
 workflow PIPELINE_COMPLETION {
 
@@ -164,7 +64,14 @@ workflow PIPELINE_COMPLETION {
 */
 
 workflow {
-    HLORF ()
+    XORF (
+       Channel.fromPath(params.regions),
+       Channel.fromPath(params.sequence),
+       Channel.fromPath(params.database),
+       params.outdir,
+       params.predict_keep_raw,
+       params.chunk_size
+    )
 
     PIPELINE_COMPLETION (
         params.email_to,
@@ -172,9 +79,9 @@ workflow {
         params.plaintext_email,
         params.outdir,
         params.use_mailx,
-        HLORF.out.files,
-        HLORF.out.counts,
-        HLORF.out.versions
+        XORF.out.files,
+        XORF.out.counts,
+        XORF.out.versions
     )
 }
 
