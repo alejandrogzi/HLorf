@@ -19,7 +19,6 @@ process PREDICT {
 
     script:
     def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}.${meta.name}"
     def threshold = task.ext.threshold ?: 0.0
     def min_score_max_predictions = task.ext.min_score_max_predictions ?: 0.50
     def max_predictions = task.ext.max_predictions ?: 3
@@ -29,7 +28,7 @@ process PREDICT {
     --samba $samba \\
     --alignments $bed \\
     --outdir ${meta.id} \\
-    --prefix ${prefix} \\
+    --prefix ${meta.id}.${meta.name} \\
     --threshold $threshold \\
     --min-score-max-predictions $min_score_max_predictions \\
     --max-predictions $max_predictions \\
@@ -38,9 +37,9 @@ process PREDICT {
     BLAST_PREDICTION_COUNT=\$(wc -l < ${blast})
     SAMBA_PREDICTION_COUNT=\$(wc -l < ${samba})
 
-    ALL_PREDICTED_REGIONS=\$(wc -l ${meta.id}/${prefix}.predictions.tsv | awk '{print \$1}')
-    UNIQUE_PREDICTED_REGIONS=\$(awk '{print \$4}' ${meta.id}/${prefix}.predictions.tsv | sed -E 's/(_ORF|\\.p[0-9]).*//' | sort | uniq | wc -l)
-    KEPT_REGIONS=\$(wc -l ${meta.id}/${prefix}.predictions.bed | awk '{print \$1}')
+    ALL_PREDICTED_REGIONS=\$(wc -l ${meta.id}/${meta.id}.${meta.name}.predictions.tsv | awk '{print \$1}')
+    UNIQUE_PREDICTED_REGIONS=\$(awk '{print \$4}' ${meta.id}/${meta.id}.${meta.name}.predictions.tsv | sed -E 's/(_ORF|\\.p[0-9]).*//' | sort | uniq | wc -l)
+    KEPT_REGIONS=\$(wc -l ${meta.id}/${meta.id}.${meta.name}.predictions.bed | awk '{print \$1}')
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -29,7 +29,6 @@ workflow XORF {
       sequence
       database
       output_dir
-      predict_keep_raw
       chunk_size
       samba_weights
       predict_keep_raw

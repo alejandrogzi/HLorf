@@ -69,7 +69,6 @@ workflow {
        Channel.fromPath(params.sequence),
        Channel.fromPath(params.database),
        params.outdir,
-       params.predict_keep_raw,
        params.chunk_size,
        params.samba_weights,
        params.predict_keep_raw
