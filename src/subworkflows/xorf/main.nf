@@ -82,7 +82,8 @@ workflow XORF {
           .map { items ->
               def beds = items.collect { meta, bed, tsv -> bed }
               def tsvs = items.collect { meta, bed, tsv -> tsv }
-              tuple([id: 'all'], beds, tsvs)
+              def metas = items.collect { meta, bed, tsv -> meta }
+              tuple([id: metas[0].id ], beds, tsvs)
           }
           .set { ch_all }
 
@@ -92,7 +93,8 @@ workflow XORF {
               .map { items ->
                   def beds = items.collect { meta, bed, tsv -> bed }
                   def tsvs = items.collect { meta, bed, tsv -> tsv }
-                  tuple([id: 'raw'], beds, tsvs)
+                  def metas = items.collect { meta, bed, tsv -> meta }
+                  tuple([id: metas[0].id + '_raw'], beds, tsvs)
               }
               .set { ch_raw }
 
