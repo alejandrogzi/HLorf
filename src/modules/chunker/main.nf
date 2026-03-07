@@ -22,6 +22,7 @@ process CHUNKER {
     script:
     def upstream = task.ext.upstream ?: 1000
     def downstream = task.ext.downstream ?: 1000
+    def prefix = task.ext.prefix ?: meta.chr
     """
     orf chunk \\
     --regions $regions \\
@@ -29,6 +30,7 @@ process CHUNKER {
     --chunks $chunk_size \\
     -u $upstream \\
     -d $downstream \\
+    --prefix $prefix \\
     --ignore-errors
 
     cat <<-END_VERSIONS > versions.yml
