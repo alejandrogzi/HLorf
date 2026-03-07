@@ -1,5 +1,5 @@
 process BLAST {
-    tag "$meta.id"
+    tag "$meta.id:$meta.name"
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"

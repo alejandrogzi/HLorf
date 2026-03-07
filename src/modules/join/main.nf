@@ -1,5 +1,5 @@
 process JOIN {
-    tag "$meta.id"
+    tag "$meta.id:$meta.name"
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"

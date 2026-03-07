@@ -1,5 +1,5 @@
 process PREDICT {
-    tag "$meta.id"
+    tag "$meta.id:$meta.name"
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
@@ -9,8 +9,8 @@ process PREDICT {
     tuple val(meta), path(bed), path(blast), path(samba)
 
     output:
-    tuple val(meta), path("${meta.id}/${meta.id}.predictions.bed"), path("${meta.id}/${meta.id}.predictions.tsv"), emit: orfs
-    tuple val(meta), path("${meta.id}/${meta.id}.all.predictions.bed"), path("${meta.id}/${meta.id}.all.predictions.tsv"), emit: raw, optional: true
+    tuple val(meta), path("${meta.id}/${meta.id}.${meta.name}.predictions.bed"), path("${meta.id}/${meta.id}.${meta.name}.predictions.tsv"), emit: orfs
+    tuple val(meta), path("${meta.id}/${meta.id}.${meta.name}.all.predictions.bed"), path("${meta.id}/${meta.id}.${meta.name}.all.predictions.tsv"), emit: raw, optional: true
     tuple val(meta), env(BLAST_PREDICTION_COUNT), env(SAMBA_PREDICTION_COUNT), env(ALL_PREDICTED_REGIONS), env(UNIQUE_PREDICTED_REGIONS), env(KEPT_REGIONS), emit: counts
     path "versions.yml", emit: versions
 
@@ -19,6 +19,7 @@ process PREDICT {
 
     script:
     def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}.${meta.name}"
     def threshold = task.ext.threshold ?: 0.0
     def min_score_max_predictions = task.ext.min_score_max_predictions ?: 0.50
     def max_predictions = task.ext.max_predictions ?: 3
@@ -28,7 +29,7 @@ process PREDICT {
     --samba $samba \\
     --alignments $bed \\
     --outdir ${meta.id} \\
-    --prefix ${meta.id} \\
+    --prefix ${prefix} \\
     --threshold $threshold \\
     --min-score-max-predictions $min_score_max_predictions \\
     --max-predictions $max_predictions \\
@@ -37,9 +38,9 @@ process PREDICT {
     BLAST_PREDICTION_COUNT=\$(wc -l < ${blast})
     SAMBA_PREDICTION_COUNT=\$(wc -l < ${samba})
 
-    ALL_PREDICTED_REGIONS=\$(wc -l ${meta.id}/${meta.id}.predictions.tsv | awk '{print \$1}')
-    UNIQUE_PREDICTED_REGIONS=\$(awk '{print \$4}' ${meta.id}/${meta.id}.predictions.tsv | sed -E 's/(_ORF|\\.p[0-9]).*//' | sort | uniq | wc -l)
-    KEPT_REGIONS=\$(wc -l ${meta.id}/${meta.id}.predictions.bed | awk '{print \$1}')
+    ALL_PREDICTED_REGIONS=\$(wc -l ${meta.id}/${prefix}.predictions.tsv | awk '{print \$1}')
+    UNIQUE_PREDICTED_REGIONS=\$(awk '{print \$4}' ${meta.id}/${prefix}.predictions.tsv | sed -E 's/(_ORF|\\.p[0-9]).*//' | sort | uniq | wc -l)
+    KEPT_REGIONS=\$(wc -l ${meta.id}/${prefix}.predictions.bed | awk '{print \$1}')
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

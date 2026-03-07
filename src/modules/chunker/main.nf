@@ -1,5 +1,5 @@
 process CHUNKER {
-    tag "chunk"
+    tag "chunk:$meta.id:$meta.name"
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
