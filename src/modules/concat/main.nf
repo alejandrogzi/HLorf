@@ -18,10 +18,11 @@ process CONCAT {
     task.ext.when == null || task.ext.when
 
     script:
+    def prefix = task.ext.prefix ?: "${meta.id}.${meta.name}"
     """
     if [ -d bed ]; then
-      cat bed/*.bed > all.bed
-      awk 'NR==1 || FNR>1' tsv/*.tsv > all.tsv
+      cat bed/*.bed > ${prefix}.bed
+      awk 'NR==1 || FNR>1' tsv/*.tsv > ${prefix}.tsv
 
       rm -rf bed
       rm -rf tsv
@@ -35,7 +36,8 @@ process CONCAT {
 
     stub:
     """
-    touch all.*
+    touch ${prefix}.bed
+    touch ${prefix}.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

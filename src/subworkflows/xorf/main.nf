@@ -25,9 +25,9 @@ include { GET_CANDIDATES } from '../candidates/main.nf'
 
 workflow XORF {
     take:
-      regions  
-      sequence
-      database
+      regions        // [ [id:id, chr:chr] , file ]
+      sequence       // [ file ]
+      database       // [ file ]
       output_dir
       chunk_size
       samba_weights
