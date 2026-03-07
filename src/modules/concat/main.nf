@@ -11,14 +11,14 @@ process CONCAT {
     tuple val(meta), path(beds, stageAs: 'bed/*'), path(tsvs, stageAs: 'tsv/*')
 
     output:
-    tuple path("*bed"), path("*tsv"), optional: true, emit: files
+    tuple val(meta), path("*bed"), path("*tsv"), optional: true, emit: files
     path "versions.yml", emit: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
-    def prefix = task.ext.prefix ?: "${meta.id}.${meta.name}"
+    def prefix = task.ext.prefix ?: [meta.id, meta.name].findAll { it }.join('.')
     """
     if [ -d bed ]; then
       cat bed/*.bed > ${prefix}.bed
