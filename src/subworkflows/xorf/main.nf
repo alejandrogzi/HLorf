@@ -78,23 +78,27 @@ workflow XORF {
       )
 
       PREDICT_ORFS.out.orfs
-          .toList()
-          .map { items ->
-              def beds = items.collect { meta, bed, tsv -> bed }
-              def tsvs = items.collect { meta, bed, tsv -> tsv }
-              def metas = items.collect { meta, bed, tsv -> meta }
-              tuple([id: metas[0].id ], beds, tsvs)
+          .map { meta, bed, tsv -> 
+              def groupKey = "${meta.id}@${meta.chr}"
+              tuple(groupKey, meta, bed, tsv)
+          }
+          .groupTuple()
+          .filter { groupKey, metas, beds, tsvs -> !beds.isEmpty() }
+          .map { groupKey, metas, beds, tsvs ->
+              return tuple([ id: groupKey, name: metas[0].id, chr: metas[0].chr ], beds, tsvs)
           }
           .set { ch_all }
 
       if (predict_keep_raw) {
           PREDICT_ORFS.out.raw
-              .toList()
-              .map { items ->
-                  def beds = items.collect { meta, bed, tsv -> bed }
-                  def tsvs = items.collect { meta, bed, tsv -> tsv }
-                  def metas = items.collect { meta, bed, tsv -> meta }
-                  tuple([id: metas[0].id + '_raw'], beds, tsvs)
+              .map { meta, bed, tsv -> 
+                  def groupKey = "${meta.id}@${meta.chr}"
+                  tuple(groupKey, meta, bed, tsv)
+              }
+              .groupTuple()
+              .filter { groupKey, metas, beds, tsvs -> !beds.isEmpty() }
+              .map { groupKey, metas, beds, tsvs ->
+                  return tuple([ name: metas[0].id, chr: metas[0].chr, id: groupKey ], beds, tsvs)
               }
               .set { ch_raw }
 
