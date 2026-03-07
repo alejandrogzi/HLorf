@@ -280,6 +280,14 @@ pub struct ChunkArgs {
         action = clap::ArgAction::SetTrue
     )]
     pub ignore_errors: bool,
+
+    #[arg(
+        short = 'p',
+        long = "prefix",
+        required = false,
+        help = "Prefix for output files"
+    )]
+    pub prefix: Option<String>,
 }
 
 #[derive(Debug, Parser)]

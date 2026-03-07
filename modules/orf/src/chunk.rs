@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 use std::{
     fs::{create_dir_all, File},
     io::{BufWriter, Write},
+    sync::Arc,
 };
 
 use crate::cli::ChunkArgs;
@@ -30,6 +31,8 @@ pub fn run_chunk(args: ChunkArgs) {
     let genome = get_sequences(args.sequence);
     let outdir = args.outdir.join("tmp");
     create_dir_all(&outdir).unwrap_or_else(|e| panic!("{}", e));
+
+    let prefix = Arc::new(args.prefix.unwrap_or_else(|| String::new()));
 
     match detect_region_format(&args.regions) {
         Some(RegionFormat::Bed) => process_reader::<Bed12>(
@@ -40,6 +43,7 @@ pub fn run_chunk(args: ChunkArgs) {
             args.upstream_flank,
             args.downstream_flank,
             args.ignore_errors,
+            prefix,
         ),
         Some(RegionFormat::Gtf) => process_reader::<Gtf>(
             &args.regions,
@@ -49,6 +53,7 @@ pub fn run_chunk(args: ChunkArgs) {
             args.upstream_flank,
             args.downstream_flank,
             args.ignore_errors,
+            prefix,
         ),
         Some(RegionFormat::Gff) => process_reader::<Gff>(
             &args.regions,
@@ -58,6 +63,7 @@ pub fn run_chunk(args: ChunkArgs) {
             args.upstream_flank,
             args.downstream_flank,
             args.ignore_errors,
+            prefix,
         ),
         None => panic!("ERROR: Unsupported file format"),
     }
@@ -71,6 +77,7 @@ fn process_reader<R>(
     upstream_flank: usize,
     downstream_flank: usize,
     ignore_errors: bool,
+    prefix: Arc<String>,
 ) where
     R: BedFormat + Into<GenePred> + Send,
 {
@@ -87,6 +94,7 @@ fn process_reader<R>(
                 upstream_flank,
                 downstream_flank,
                 ignore_errors,
+                prefix.clone(),
             )
         });
 }
@@ -99,8 +107,14 @@ fn write_chunk(
     upstream_flank: usize,
     downstream_flank: usize,
     ignore_errors: bool,
+    prefix: Arc<String>,
 ) {
-    let tmp = outdir.join(format!("tmp_{}.bed", idx));
+    let tmp = if !prefix.is_empty() {
+        outdir.join(format!("{}.tmp_{}.bed", prefix, idx))
+    } else {
+        outdir.join(format!("tmp_{}.bed", idx))
+    };
+
     let mut writer = BufWriter::new(File::create(&tmp).unwrap_or_else(|e| panic!("{}", e)));
 
     let mut f_writer =
