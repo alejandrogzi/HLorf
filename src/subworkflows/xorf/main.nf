@@ -116,20 +116,20 @@ workflow XORF {
 
       PREDICT_ORFS.out.counts
       .map { meta, initial, netstart, transaid, ns_td, tai, blast, samba, all, unique, kept ->
-          def line = "${meta.id}\t${initial}\t${netstart}\t${transaid}\t${ns_td}\t${tai}\t${blast}\t${samba}\t${all}\t${unique}\t${kept}"
+          def line = "${meta.id}@{meta.chr}\t${initial}\t${netstart}\t${transaid}\t${ns_td}\t${tai}\t${blast}\t${samba}\t${all}\t${unique}\t${kept}"
           return line
       }
       .collectFile(
         name: 'counts.tsv',
         newLine: true,
-        storeDir: "${output_dir}/samplesheets"
+        storeDir: "${output_dir}/XORF_PIPELINE_INFO/XORF_COUNTS"
       )
       .set { ch_counts }
 
       ch_versions = ch_versions.mix(CONCAT.out.versions)
       ch_pipeline_versions = ch_versions
           .collectFile(
-              name:      "HLorf.versions.yml",
+              name:      "xorf.versions.yml",
               storeDir:  "${output_dir}/XORF_PIPELINE_INFO",
               sort:      true,
               keepHeader: false,
