@@ -1,6 +1,6 @@
 [package]
 name = "orf"
-version = "0.0.20"
+version = "0.0.21"
 edition = "2024"
 
 [dependencies]
@@ -16,6 +16,7 @@ twobit = "0.2.1"
 num_cpus = "1.17.0"
 simple_logger = "5.0.0"
 log = "0.4.14"
+flate2 = { version = "1.0.25",  features = ["zlib-ng-compat"] }
 
 [profile.release]
 lto = true

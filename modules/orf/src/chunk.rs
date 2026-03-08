@@ -11,17 +11,17 @@
 //! learning model trained with true ORFs and false positives. The process is
 //! heavily parallelized to offer fast performance on large datasets.
 
+use flate2::read::MultiGzDecoder;
 use genepred::{bed::BedFormat, Bed12, GenePred, Gff, Gtf, Reader, ReaderResult, Strand, Writer};
-use memchr::memchr;
-use memmap2::Mmap;
 use rayon::prelude::*;
 use twobit::TwoBitFile;
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::{
+    collections::HashMap,
+    fmt::Debug,
     fs::{create_dir_all, File},
-    io::{BufWriter, Write},
+    io::{BufRead, BufReader, BufWriter, Write},
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -69,6 +69,31 @@ pub fn run_chunk(args: ChunkArgs) {
     }
 }
 
+/// Processes genomic regions in parallel chunks and writes output to FASTA file.
+///
+/// # Arguments
+///
+/// - `regions`: Path to the annotation file (BED, GTF, or GFF)
+/// - `chunks`: Number of records per parallel processing chunk
+/// - `outdir`: Output directory path
+/// - `genome`: HashMap of chromosome names to sequences
+/// - `upstream_flank`: Bases to extend upstream of first exon
+/// - `downstream_flank`: Bases to extend downstream of last exon
+/// - `ignore_errors`: Whether to continue on errors
+/// - `prefix`: Prefix for output file names
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use xloci::core::process_reader;
+/// use xloci::Feature;
+/// use std::collections::HashMap;
+///
+/// let genome: HashMap<Vec<u8>, Vec<u8>> = HashMap::new();
+/// process_reader::<genepred::Gtf>(
+///     ...
+/// );
+/// ```
 fn process_reader<R>(
     regions: &Path,
     chunks: usize,
@@ -99,6 +124,29 @@ fn process_reader<R>(
         });
 }
 
+/// Processes a chunk of genomic records and writes extracted sequences to a temporary file.
+///
+/// # Arguments
+///
+/// - `idx`: Chunk index for naming output files
+/// - `chunk`: Vector of GenePred records to process
+/// - `genome`: HashMap of chromosome names to sequences
+/// - `upstream_flank`: Bases to extend upstream of first exon
+/// - `downstream_flank`: Bases to extend downstream of last exon
+/// - `ignore_errors`: Whether to continue on errors
+/// - `outdir`: Output directory for chunk files
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::sync::{Arc, Mutex};
+/// use xloci::Feature;
+///
+/// let collector = Some(Arc::new(Mutex::new(Vec::new())));
+/// write_chunk(
+///     ...
+/// );
+/// ```
 fn write_chunk(
     idx: usize,
     chunk: Vec<ReaderResult<GenePred>>,
@@ -223,6 +271,28 @@ impl std::fmt::Display for RangeError {
     }
 }
 
+/// Calculates the slice range for an exon with appropriate flanking regions.
+///
+/// # Arguments
+///
+/// - `exon_idx`: Index of the current exon (0-based)
+/// - `exon_count`: Total number of exons in the feature
+/// - `feature_start`: Start coordinate of the exon
+/// - `feature_end`: End coordinate of the exon
+/// - `upstream_flank`: Bases to add to first exon start
+/// - `downstream_flank`: Bases to add to last exon end
+///
+/// # Example
+///
+/// ```rust,ignore
+/// // Single exon with flanking
+/// let range = slice_range_for_exon(0, 1, 100, 200, 10, 20).unwrap();
+/// assert_eq!(range, 90..220);
+///
+/// // Middle exon (no flanking)
+/// let range = slice_range_for_exon(1, 3, 100, 200, 10, 20).unwrap();
+/// assert_eq!(range, 100..200);
+/// ```
 fn slice_range_for_exon(
     exon_idx: usize,
     exon_count: usize,
@@ -259,6 +329,26 @@ fn slice_range_for_exon(
     Ok(start..end)
 }
 
+/// Extends target sequence with a slice or handles out-of-bounds errors gracefully.
+///
+/// # Arguments
+///
+/// - `record`: The GenePred record being processed
+/// - `target`: Vector to extend with the slice
+/// - `seq`: Full chromosome sequence
+/// - `range`: Slice range to extract
+/// - `exon_idx`: Index of current exon for error messages
+/// - `ignore_errors`: Whether to return false on error instead of panicking
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let seq = b"ACGTACGTACGT";
+/// let mut target = Vec::new();
+/// let success = extend_or_handle_oob(&record, &mut target, seq, 0..6, 0, true);
+/// assert!(success);
+/// assert_eq!(target, b"ACGTAC");
+/// ```
 fn extend_or_handle_oob(
     record: &GenePred,
     target: &mut Vec<u8>,
@@ -292,6 +382,24 @@ fn extend_or_handle_oob(
     }
 }
 
+/// Extracts genomic sequence for a feature with flanking regions applied.
+///
+/// # Arguments
+///
+/// - `record`: GenePred record containing exon coordinates
+/// - `seq`: Full chromosome sequence
+/// - `upstream_flank`: Bases to extend upstream of first feature
+/// - `downstream_flank`: Bases to extend downstream of last feature
+/// - `feature_type`: Type of feature to extract (exon, intron, CDS, etc.)
+/// - `ignore_errors`: Whether to return None on error instead of panicking
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let seq = b"ACGTACGTACGT";
+/// let extracted = extract_seq(&record, seq, 0, 0, &Feature::Exon, false);
+/// assert_eq!(extracted, Some(b"ACGT".to_vec()));
+/// ```
 fn extract_seq(
     record: &GenePred,
     seq: &[u8],
@@ -334,6 +442,22 @@ fn extract_seq(
     Some(target)
 }
 
+/// Supported genomic annotation file formats.
+///
+/// # Variants
+///
+/// - `Bed`: BED format (12-column)
+/// - `Gtf`: GTF format
+/// - `Gff`: GFF format
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use xloci::core::RegionFormat;
+///
+/// let format = detect_region_format(Path::new("annotations.gtf"));
+/// assert_eq!(format, Some(RegionFormat::Gtf));
+/// ```
 #[derive(Clone, Copy)]
 enum RegionFormat {
     Bed,
@@ -341,6 +465,23 @@ enum RegionFormat {
     Gff,
 }
 
+/// Detects the genomic annotation format from file extension.
+///
+/// # Arguments
+///
+/// - `path`: Path to the annotation file
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::path::Path;
+///
+/// assert_eq!(detect_region_format(Path::new("file.bed")), Some(RegionFormat::Bed));
+/// assert_eq!(detect_region_format(Path::new("file.gtf")), Some(RegionFormat::Gtf));
+/// assert_eq!(detect_region_format(Path::new("file.gff")), Some(RegionFormat::Gff));
+/// assert_eq!(detect_region_format(Path::new("file.gtf.gz")), Some(RegionFormat::Gtf));
+/// assert_eq!(detect_region_format(Path::new("file.txt")), None);
+/// ```
 fn detect_region_format(path: &Path) -> Option<RegionFormat> {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some("bed") => Some(RegionFormat::Bed),
@@ -362,17 +503,46 @@ fn detect_region_format(path: &Path) -> Option<RegionFormat> {
     }
 }
 
+/// Loads genome sequences from a file (2bit or FASTA format).
+///
+/// # Arguments
+///
+/// - `sequence`: Path to the genome file (.fa, .fa.gz, or .2bit)
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::path::PathBuf;
+///
+/// let genome = get_sequences(PathBuf::from("genome.2bit"));
+/// let genome = get_sequences(PathBuf::from("genome.fa"));
+/// let genome = get_sequences(PathBuf::from("genome.fa.gz"));
+/// ```
 pub fn get_sequences(sequence: PathBuf) -> HashMap<Vec<u8>, Vec<u8>> {
     match sequence.extension() {
         Some(ext) => match ext.to_str() {
             Some("2bit") => from_2bit(sequence),
-            Some("fa") | Some("gz") => from_fa(sequence),
+            Some("fa") | Some("fasta") | Some("fna") | Some("gz") => from_fa(sequence),
             _ => panic!("ERROR: Unsupported file format"),
         },
         None => panic!("ERROR: No file extension"),
     }
 }
 
+/// Loads genome sequences from a 2bit compressed format file.
+///
+/// # Arguments
+///
+/// - `twobit`: Path to the 2bit file
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::path::PathBuf;
+///
+/// let sequences = from_2bit(PathBuf::from("genome.2bit"));
+/// let chr1 = sequences.get(b"chr1");
+/// ```
 fn from_2bit(twobit: PathBuf) -> HashMap<Vec<u8>, Vec<u8>> {
     let mut genome = TwoBitFile::open_and_read(twobit).expect("ERROR: Cannot open 2bit file");
 
@@ -390,29 +560,69 @@ fn from_2bit(twobit: PathBuf) -> HashMap<Vec<u8>, Vec<u8>> {
     sequences
 }
 
-pub fn from_fa<F: AsRef<Path>>(f: F) -> HashMap<Vec<u8>, Vec<u8>> {
-    let file = File::open(f).unwrap();
-    let mmap = unsafe { Mmap::map(&file).unwrap() };
-    let data = mmap.as_ref();
+/// Loads genome sequences from a FASTA format file (optionally gzipped).
+///
+/// # Arguments
+///
+/// - `f`: Path to the FASTA file (.fa or .fa.gz)
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::path::PathBuf;
+///
+/// let sequences = from_fa(PathBuf::from("genome.fa"));
+/// let sequences = from_fa(PathBuf::from("genome.fa.gz"));
+/// let chr1 = sequences.get(b"chr1");
+/// ```
+pub fn from_fa<F: AsRef<Path> + Debug>(f: F) -> HashMap<Vec<u8>, Vec<u8>> {
+    let path = f.as_ref();
+    let file = File::open(path)
+        .unwrap_or_else(|e| panic!("ERROR: cannot open FASTA {}: {}", path.display(), e));
+
+    let mut reader: Box<dyn BufRead> = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("gz") => Box::new(BufReader::new(MultiGzDecoder::new(file))),
+        _ => Box::new(BufReader::new(file)),
+    };
 
     let mut acc = HashMap::new();
-    let mut pos = 0;
+    let mut line = Vec::new();
+    let mut header: Option<Vec<u8>> = None;
+    let mut seq = Vec::new();
 
-    while let Some(start) = memchr(b'>', &data[pos..]) {
-        let start = pos + start;
-        let end = memchr(b'>', &data[start + 1..]).map_or(data.len(), |e| start + 1 + e);
-        let entry = &data[start + 1..end];
-        let header_end = memchr(b'\n', entry).unwrap();
-        let header = &entry[..header_end];
-        let record = &entry[header_end + 1..];
-        let seq = record
-            .iter()
-            .filter(|&&b| b != b'\n' && b != b'\r') // Remove newlines and carriage returns
-            .cloned()
-            .collect::<Vec<u8>>();
+    loop {
+        line.clear();
+        let bytes_read = reader
+            .read_until(b'\n', &mut line)
+            .unwrap_or_else(|e| panic!("ERROR: cannot read FASTA {}: {}", path.display(), e));
 
-        acc.insert(header.to_vec(), seq);
-        pos = end;
+        if bytes_read == 0 {
+            break;
+        }
+
+        if line.ends_with(b"\n") {
+            line.pop();
+        }
+
+        if line.ends_with(b"\r") {
+            line.pop();
+        }
+
+        if line.is_empty() {
+            continue;
+        }
+
+        if line[0] == b'>' {
+            if let Some(prev_header) = header.replace(line[1..].to_vec()) {
+                acc.insert(prev_header, std::mem::take(&mut seq));
+            }
+        } else {
+            seq.extend_from_slice(&line);
+        }
+    }
+
+    if let Some(last_header) = header {
+        acc.insert(last_header, seq);
     }
 
     acc
