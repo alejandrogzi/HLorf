@@ -11,9 +11,8 @@ process CHUNKER {
     val(chunk_size)
 
     output:
-    path('tmp'),          emit: chunks
-    tuple val(meta), path('tmp/*bed'),     emit: chunked_regions
-    tuple val(meta), path('tmp/*fa'),      emit: chunked_sequences
+    tuple val(meta), path('tmp/*bed'),     optional: true, emit: chunked_regions
+    tuple val(meta), path('tmp/*fa'),      optional: true, emit: chunked_sequences
     path "versions.yml",  emit: versions
 
     when:
