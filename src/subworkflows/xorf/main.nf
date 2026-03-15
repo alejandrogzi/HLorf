@@ -116,7 +116,7 @@ workflow XORF {
 
       PREDICT_ORFS.out.counts
       .map { meta, initial, netstart, transaid, ns_td, tai, blast, samba, all, unique, kept ->
-          def line = "${meta.id}@{meta.chr}\t${initial}\t${netstart}\t${transaid}\t${ns_td}\t${tai}\t${blast}\t${samba}\t${all}\t${unique}\t${kept}"
+          def line = "${meta.id}@${meta.chr}\t${initial}\t${netstart}\t${transaid}\t${ns_td}\t${tai}\t${blast}\t${samba}\t${all}\t${unique}\t${kept}"
           return line
       }
       .collectFile(
