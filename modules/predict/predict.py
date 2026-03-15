@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.17"
+__version__ = "0.0.18"
 
 import argparse
 import logging
@@ -395,13 +395,18 @@ def map_to_blocks(
     >>> # # in the './output' directory.
     """
     log.info(f"INFO: Initial size of table: {len(table)}")
+    log.info(f"INFO: Table looks like this:\n{table[['prefix', 'prob_coding']].head()}")
     table = table.copy()
     # table["id"] = [id.split("__")[0] for id in table.blast_id] -> replace by prefix
 
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
+    log.info(f"INFO: Reading alignments from {alignments}")
     bed = pd.read_csv(alignments, sep="\t", header=None)
+    log.info(f"INFO: Alignments has {len(bed)} rows!")
+    log.info(f"INFO: Alignments looks like this:\n{bed[[0, 3]].head()}")
+
     merged = (
         bed.assign(prefix=bed[3])
         .merge(
@@ -415,6 +420,9 @@ def map_to_blocks(
             end=lambda df: df["end"].astype(int),
         )
     )
+
+    log.info(f"INFO: Merged table has {len(merged)} rows!")
+    log.info(f"INFO: Merged table looks like this:\n{merged.head()}")
 
     merged[3] = merged["id"]
     merged[6] = merged["start"]
@@ -463,6 +471,7 @@ def map_to_blocks(
     merged["rank"] = merged.groupby("prefix").cumcount() + 1
     merged.loc[merged["rank"] > 1, 3] += "#DU"
 
+    log.info(f"INFO: Writing predictions to {outdir}/{prefix}.predictions.bed")
     merged.drop(columns=["prefix", "start", "end", "prob_coding", "rank", "id"]).to_csv(
         f"{outdir}/{prefix}.predictions.bed", sep="\t", header=False, index=False
     )
@@ -591,7 +600,7 @@ def read_blast(path: Union[str, PathLike, Path]) -> pd.DataFrame:
     # INFO: needs to be the canonical ID
     # R1_chr1__OR2#NE1 -> R1_chr1 [samba] + R1_chr1:1-10(+) [bed]
     blast["prefix"] = blast["id"].astype(str).str.split("_ORF").str[0]
-    blast["prefix"] = blast["prefix"].str.split(".p").str[0]
+    blast["prefix"] = blast["prefix"].str.split("\.p").str[0]
 
     blast["key"] = (
         blast["prefix"]
