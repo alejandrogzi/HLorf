@@ -78,6 +78,7 @@ workflow XORF {
       )
 
       PREDICT_ORFS.out.orfs
+          .filter { meta, bed, tsv -> bed.size() > 0 }
           .map { meta, bed, tsv -> 
               def groupKey = "${meta.id}@${meta.chr}"
               tuple(groupKey, meta, bed, tsv)
@@ -91,6 +92,7 @@ workflow XORF {
 
       if (predict_keep_raw) {
           PREDICT_ORFS.out.raw
+              .filter { meta, bed, tsv -> bed.size() > 0 }
               .map { meta, bed, tsv -> 
                   def groupKey = "${meta.id}@${meta.chr}"
                   tuple(groupKey, meta, bed, tsv)
