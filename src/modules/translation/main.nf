@@ -9,7 +9,7 @@ process TRANSLATION {
     tuple val(meta), path(bed), path(sequence)
 
     output:
-    tuple val(meta), path(bed), path(sequence), path("${meta.id}/*result"), emit: predictions
+    tuple val(meta), path(bed), path(sequence), path("${meta.id}/*result"), optional: true, emit: predictions
     path "versions.yml", emit: versions
 
     when:
