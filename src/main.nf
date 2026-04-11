@@ -71,11 +71,12 @@ workflow {
           file(params.samba_local_weights, checkIfExists: true)
         ).map { path -> [ [id : path.baseName ], path ] }
     } else {
-        ch_samba_weights = WGET_SAMBA_WEIGHTS(
+        WGET_SAMBA_WEIGHTS(
           Channel.value(
             params.samba_weights
           ).map { url -> [ [id : url.tokenize('/')[-1]], url ] }
         )
+        ch_samba_weights = WGET_SAMBA_WEIGHTS.out.outfile
     }
 
     XORF (
