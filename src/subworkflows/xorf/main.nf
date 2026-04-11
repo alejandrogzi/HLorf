@@ -30,7 +30,7 @@ workflow XORF {
       database       // [ file ]
       output_dir
       chunk_size
-      samba_weights
+      samba_weights  // channel: [ meta, path ]
       predict_keep_raw
 
     main:

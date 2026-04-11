@@ -15,17 +15,11 @@ workflow GET_CANDIDATES {
     main:
     ch_versions = Channel.empty()
 
-    ch_samba_weights = WGET_SAMBA_WEIGHTS(
-        Channel.value(
-          samba_weights
-        ).map { url -> [ [id : url.tokenize('/')[-1]], url ] }
-    )
-
     TRANSLATION(ch_pairs)
 
     RNASAMBA(
       ch_pairs,
-      ch_samba_weights.outfile
+      samba_weights
     )
 
     NETSTART(

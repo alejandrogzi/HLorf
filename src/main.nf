@@ -12,6 +12,7 @@ nextflow.enable.dsl=2
 
 include { EMAIL }        from './modules/email/main.nf'
 include { XORF }         from './subworkflows/xorf/main.nf'
+include { WGET as WGET_SAMBA_WEIGHTS } from './modules/wget/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -64,13 +65,26 @@ workflow PIPELINE_COMPLETION {
 */
 
 workflow {
+    ch_samba_weights = Channel.empty()
+    if (params.samba_local_weights) {
+        ch_samba_weights = Channel.value(
+          file(params.samba_local_weights, checkIfExists: true)
+        ).map { path -> [ [id : path.baseName ], path ] }
+    } else {
+        ch_samba_weights = WGET_SAMBA_WEIGHTS(
+          Channel.value(
+            params.samba_weights
+          ).map { url -> [ [id : url.tokenize('/')[-1]], url ] }
+        )
+    }
+
     XORF (
        Channel.fromPath(params.regions).map { it -> [ [id: it.baseName, chr:'xorf'], it ] },
        Channel.fromPath(params.sequence),
        Channel.fromPath(params.database),
        params.outdir,
        params.chunk_size,
-       params.samba_weights,
+       samba_weights,
        params.predict_keep_raw
     )
 
