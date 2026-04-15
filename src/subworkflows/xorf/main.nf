@@ -13,6 +13,7 @@ nextflow.enable.dsl=2
 include { CHUNKER }      from '../../modules/chunker/main.nf'
 include { CONCAT }       from '../../modules/concat/main.nf'
 include { CONCAT as CONCAT_RAW }   from '../../modules/concat/main.nf'
+include { GENOMEMASK_SELENO } from '../../modules/genomemask/seleno/main.nf'
 
 include { PREDICT_ORFS } from '../predict_orfs/main.nf'
 include { GET_CANDIDATES } from '../candidates/main.nf'
@@ -32,6 +33,7 @@ workflow XORF {
       chunk_size
       samba_weights  // channel: [ meta, path ]
       predict_keep_raw
+      selenocysteine_sites
 
     main:
       def ch_regions  = regions
@@ -41,11 +43,27 @@ workflow XORF {
 
       def ch_versions = Channel.empty()
 
-      CHUNKER(
-          ch_regions,
-          ch_sequence,
-          chunkSize,
-      )
+      if (selenocysteine_sites) {
+          GENOMEMASK_SELENO(
+              ch_sequence.map { it -> [ [id: it.baseName], it ] },
+              Channel.fromPath(selenocysteine_sites, checkIfExists: true)
+              .map { it -> [ [id: it.baseName], it ] }
+          )
+
+          CHUNKER(
+              ch_regions,
+              GENOMEMASK_SELENO.out.twobit,
+              chunkSize,
+          )
+
+          ch_versions = ch_versions.mix(GENOMEMASK_SELENO.out.versions)
+      } else {
+          CHUNKER(
+              ch_regions,
+              ch_sequence.map { it -> [ [ id: it.baseName ], it ] },
+              chunkSize,
+          )
+      }
 
       CHUNKER.out.chunked_regions
           .flatMap { meta, region -> 
@@ -62,8 +80,6 @@ workflow XORF {
                 }
           )
           .set { ch_pairs }
-
-      ch_versions = ch_versions.mix(CHUNKER.out.versions)
 
       GET_CANDIDATES(
           ch_pairs,
@@ -109,9 +125,6 @@ workflow XORF {
           )
       }
 
-      ch_versions = ch_versions.mix(GET_CANDIDATES.out.versions)
-      ch_versions = ch_versions.mix(PREDICT_ORFS.out.versions)
-
       CONCAT(
           ch_all
       )
@@ -137,6 +150,10 @@ workflow XORF {
               keepHeader: false,
               newLine:   true
           )
+
+      ch_versions = ch_versions.mix(CHUNKER.out.versions)
+      ch_versions = ch_versions.mix(GET_CANDIDATES.out.versions)
+      ch_versions = ch_versions.mix(PREDICT_ORFS.out.versions)
 
     emit:
       files = CONCAT.out.files

@@ -7,7 +7,7 @@ process CHUNKER {
 
     input:
     tuple val(meta), path(regions)
-    path(sequence)
+    tuple val(meta1), path(sequence)
     val(chunk_size)
 
     output:

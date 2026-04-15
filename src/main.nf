@@ -23,39 +23,39 @@ include { WGET as WGET_SAMBA_WEIGHTS } from './modules/wget/main.nf'
 workflow PIPELINE_COMPLETION {
 
     take:
-    email
-    email_on_fail
-    plaintext_email
-    outdir
-    use_mailx
-    files
-    counts
-    ch_versions
+      email
+      email_on_fail
+      plaintext_email
+      outdir
+      use_mailx
+      files
+      counts
+      ch_versions
 
     main:
 
-    if (params.sent_email) {
-        EMAIL (
-            email,
-            email_on_fail,
-            plaintext_email,
-            outdir,
-            use_mailx,
-            files,
-            counts,
-            ch_versions
-        )
-    }
+      if (params.sent_email) {
+          EMAIL (
+              email,
+              email_on_fail,
+              plaintext_email,
+              outdir,
+              use_mailx,
+              files,
+              counts,
+              ch_versions
+          )
+      }
 
-    workflow.onError {
-        log.error "ERROR: Pipeline failed!"
-        log.error "ERROR: Please check the following error message:\n${workflow.errorMessage}"
-        log.error "ERROR: Refer to github issues: https://github.com/alejandrogzi/HLorf/issues"
-    }
+      workflow.onError {
+          log.error "ERROR: Pipeline failed!"
+          log.error "ERROR: Please check the following error message:\n${workflow.errorMessage}"
+          log.error "ERROR: Refer to github issues: https://github.com/alejandrogzi/HLorf/issues"
+      }
 
-    workflow.onComplete {
-        log.info "\nPipeline completed successfully!"
-    }
+      workflow.onComplete {
+          log.info "\nPipeline completed successfully!"
+      }
 }
 
 /*
@@ -85,8 +85,9 @@ workflow {
        Channel.fromPath(params.database),
        params.outdir,
        params.chunk_size,
-       samba_weights,
-       params.predict_keep_raw
+       ch_samba_weights,
+       params.predict_keep_raw,
+       params.selenocysteine_sites
     )
 
     PIPELINE_COMPLETION (
