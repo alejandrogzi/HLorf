@@ -52,7 +52,7 @@ workflow XORF {
 
           CHUNKER(
               ch_regions,
-              GENOMEMASK_SELENO.out.twobit,
+              GENOMEMASK_SELENO.out.twobit.first(),
               chunkSize,
           )
 
